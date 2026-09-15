@@ -2986,13 +2986,14 @@
   };
 
   /**
-   * Applies mathematically accurate Color Vision Deficiency (CVD) SVG filter matrix to the page.
-   * Supports Protanopia, Deuteranopia, Tritanopia, and Achromatopsia.
-   * @param {'none' | 'protanopia' | 'deuteranopia' | 'tritanopia' | 'achromatopsia'} filterType
+   * Applies mathematically accurate Color Vision Deficiency (CVD) and Low Vision filters to the page.
+   * Supports Protanopia, Deuteranopia, Tritanopia, Achromatopsia, Cataracts (Blur),
+   * Glaucoma (Tunnel Vision), Macular Degeneration (Central Blind Spot), and Photophobia (Inversion).
+   * @param {'none' | 'protanopia' | 'deuteranopia' | 'tritanopia' | 'achromatopsia' | 'cataracts' | 'glaucoma' | 'macular' | 'photophobia'} filterType
    * @returns {{ active: boolean, filter: string }}
    */
   window.__auditforgeSetColorFilter = function (filterType) {
-    const FILTER_ID_MAP = {
+    const CVD_FILTER_ID_MAP = {
       protanopia: '__af_cvd_protanopia__',
       deuteranopia: '__af_cvd_deuteranopia__',
       tritanopia: '__af_cvd_tritanopia__',
@@ -3000,63 +3001,143 @@
     };
 
     const LABELS = {
-      protanopia: 'Protanopia (Red-Blind)',
-      deuteranopia: 'Deuteranopia (Green-Blind)',
-      tritanopia: 'Tritanopia (Blue-Blind)',
-      achromatopsia: 'Achromatopsia (Monochrome)',
+      protanopia: 'Color Vision: Protanopia (Red-Blind)',
+      deuteranopia: 'Color Vision: Deuteranopia (Green-Blind)',
+      tritanopia: 'Color Vision: Tritanopia (Blue-Blind)',
+      achromatopsia: 'Color Vision: Achromatopsia (Monochrome)',
+      cataracts: 'Low Vision: Cataracts (Blur & Contrast Wash)',
+      glaucoma: 'Low Vision: Glaucoma (Tunnel Vision)',
+      macular: 'Low Vision: Macular Degeneration (Central Blind Spot)',
+      photophobia: 'Low Vision: Photophobia (Inverted Contrast)',
     };
 
+    // Clean up any existing low-vision overlays, listeners, and styles
     document.getElementById('__af_cvd_indicator__')?.remove();
+    document.getElementById('__af_tunnel_overlay__')?.remove();
+    document.getElementById('__af_macular_overlay__')?.remove();
+    document.documentElement.style.removeProperty('filter');
+    if (typeof window.__af_vision_mouse_cleanup === 'function') {
+      window.__af_vision_mouse_cleanup();
+      window.__af_vision_mouse_cleanup = null;
+    }
 
-    if (!filterType || filterType === 'none' || !FILTER_ID_MAP[filterType]) {
-      document.documentElement.style.removeProperty('filter');
+    if (!filterType || filterType === 'none') {
       return { active: false, filter: 'none' };
     }
 
-    let defsSvg = document.getElementById('__auditforge_cvd_defs__');
-    if (!defsSvg) {
-      defsSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-      defsSvg.id = '__auditforge_cvd_defs__';
-      defsSvg.setAttribute('style', 'position: absolute; height: 0; width: 0; overflow: hidden;');
-      defsSvg.setAttribute('aria-hidden', 'true');
-      defsSvg.innerHTML = `
-        <defs>
-          <filter id="__af_cvd_protanopia__">
-            <feColorMatrix type="matrix" values="
-              0.567, 0.433, 0.000, 0, 0
-              0.558, 0.442, 0.000, 0, 0
-              0.000, 0.242, 0.758, 0, 0
-              0.000, 0.000, 0.000, 1, 0" />
-          </filter>
-          <filter id="__af_cvd_deuteranopia__">
-            <feColorMatrix type="matrix" values="
-              0.625, 0.375, 0.000, 0, 0
-              0.700, 0.300, 0.000, 0, 0
-              0.000, 0.300, 0.700, 0, 0
-              0.000, 0.000, 0.000, 1, 0" />
-          </filter>
-          <filter id="__af_cvd_tritanopia__">
-            <feColorMatrix type="matrix" values="
-              0.950, 0.050, 0.000, 0, 0
-              0.000, 0.433, 0.567, 0, 0
-              0.000, 0.475, 0.525, 0, 0
-              0.000, 0.000, 0.000, 1, 0" />
-          </filter>
-          <filter id="__af_cvd_achromatopsia__">
-            <feColorMatrix type="matrix" values="
-              0.299, 0.587, 0.114, 0, 0
-              0.299, 0.587, 0.114, 0, 0
-              0.299, 0.587, 0.114, 0, 0
-              0.000, 0.000, 0.000, 1, 0" />
-          </filter>
-        </defs>
-      `;
-      document.documentElement.appendChild(defsSvg);
+    // 1. Color Vision Deficiency (SVG Matrix Filters)
+    if (CVD_FILTER_ID_MAP[filterType]) {
+      let defsSvg = document.getElementById('__auditforge_cvd_defs__');
+      if (!defsSvg) {
+        defsSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        defsSvg.id = '__auditforge_cvd_defs__';
+        defsSvg.setAttribute('style', 'position: absolute; height: 0; width: 0; overflow: hidden;');
+        defsSvg.setAttribute('aria-hidden', 'true');
+        defsSvg.innerHTML = `
+          <defs>
+            <filter id="__af_cvd_protanopia__">
+              <feColorMatrix type="matrix" values="
+                0.567, 0.433, 0.000, 0, 0
+                0.558, 0.442, 0.000, 0, 0
+                0.000, 0.242, 0.758, 0, 0
+                0.000, 0.000, 0.000, 1, 0" />
+            </filter>
+            <filter id="__af_cvd_deuteranopia__">
+              <feColorMatrix type="matrix" values="
+                0.625, 0.375, 0.000, 0, 0
+                0.700, 0.300, 0.000, 0, 0
+                0.000, 0.300, 0.700, 0, 0
+                0.000, 0.000, 0.000, 1, 0" />
+            </filter>
+            <filter id="__af_cvd_tritanopia__">
+              <feColorMatrix type="matrix" values="
+                0.950, 0.050, 0.000, 0, 0
+                0.000, 0.433, 0.567, 0, 0
+                0.000, 0.475, 0.525, 0, 0
+                0.000, 0.000, 0.000, 1, 0" />
+            </filter>
+            <filter id="__af_cvd_achromatopsia__">
+              <feColorMatrix type="matrix" values="
+                0.299, 0.587, 0.114, 0, 0
+                0.299, 0.587, 0.114, 0, 0
+                0.299, 0.587, 0.114, 0, 0
+                0.000, 0.000, 0.000, 1, 0" />
+            </filter>
+          </defs>
+        `;
+        document.documentElement.appendChild(defsSvg);
+      }
+      const filterId = CVD_FILTER_ID_MAP[filterType];
+      document.documentElement.style.setProperty('filter', `url(#${filterId})`, 'important');
     }
 
-    const filterId = FILTER_ID_MAP[filterType];
-    document.documentElement.style.setProperty('filter', `url(#${filterId})`, 'important');
+    // 2. Cataracts / Visual Acuity Loss (Gaussian blur & low contrast wash)
+    else if (filterType === 'cataracts') {
+      document.documentElement.style.setProperty('filter', 'blur(3.5px) contrast(0.82) brightness(1.05)', 'important');
+    }
 
+    // 3. Photophobia (Extreme Light Sensitivity / Inverted High Contrast)
+    else if (filterType === 'photophobia') {
+      document.documentElement.style.setProperty('filter', 'invert(1) hue-rotate(180deg) contrast(1.15)', 'important');
+    }
+
+    // 4. Glaucoma (Tunnel Vision / Loss of Peripheral Field)
+    else if (filterType === 'glaucoma') {
+      const overlay = document.createElement('div');
+      overlay.id = '__af_tunnel_overlay__';
+      overlay.style.cssText = `
+        position: fixed;
+        inset: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 2147483640;
+        pointer-events: none;
+        background: radial-gradient(circle at 50% 50%, transparent 12%, rgba(10, 15, 29, 0.72) 22%, rgba(10, 15, 29, 0.96) 35%, rgba(10, 15, 29, 0.99) 100%);
+        backdrop-filter: blur(1px);
+        transition: background 0.04s ease-out;
+      `;
+      document.body.appendChild(overlay);
+
+      const updateTunnel = (e) => {
+        const x = Math.round((e.clientX / window.innerWidth) * 100);
+        const y = Math.round((e.clientY / window.innerHeight) * 100);
+        overlay.style.background = `radial-gradient(circle at ${x}% ${y}%, transparent 12%, rgba(10, 15, 29, 0.72) 22%, rgba(10, 15, 29, 0.96) 35%, rgba(10, 15, 29, 0.99) 100%)`;
+      };
+      window.addEventListener('mousemove', updateTunnel, { passive: true });
+      window.__af_vision_mouse_cleanup = () => {
+        window.removeEventListener('mousemove', updateTunnel);
+      };
+    }
+
+    // 5. Macular Degeneration (Central Blind Spot / Central Scotoma)
+    else if (filterType === 'macular') {
+      const overlay = document.createElement('div');
+      overlay.id = '__af_macular_overlay__';
+      overlay.style.cssText = `
+        position: fixed;
+        inset: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 2147483640;
+        pointer-events: none;
+        background: radial-gradient(circle at 50% 50%, rgba(15, 23, 42, 0.97) 0%, rgba(15, 23, 42, 0.88) 12%, rgba(15, 23, 42, 0.4) 22%, transparent 32%);
+        transition: background 0.04s ease-out;
+      `;
+      document.body.appendChild(overlay);
+
+      const updateMacular = (e) => {
+        const x = Math.round((e.clientX / window.innerWidth) * 100);
+        const y = Math.round((e.clientY / window.innerHeight) * 100);
+        overlay.style.background = `radial-gradient(circle at ${x}% ${y}%, rgba(15, 23, 42, 0.97) 0%, rgba(15, 23, 42, 0.88) 12%, rgba(15, 23, 42, 0.4) 22%, transparent 32%)`;
+      };
+      window.addEventListener('mousemove', updateMacular, { passive: true });
+      window.__af_vision_mouse_cleanup = () => {
+        window.removeEventListener('mousemove', updateMacular);
+      };
+    }
+
+    // Floating indicator pill
+    const isLowVision = ['cataracts', 'glaucoma', 'macular', 'photophobia'].includes(filterType);
     const pill = document.createElement('div');
     pill.id = '__af_cvd_indicator__';
     pill.style.cssText = `
@@ -3065,10 +3146,10 @@
       left: 16px;
       z-index: 2147483647;
       background: #0f172a;
-      border: 1px solid #334155;
+      border: 1px solid ${isLowVision ? '#a855f7' : '#334155'};
       border-radius: 999px;
       padding: 6px 14px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      box-shadow: 0 10px 25px rgba(0,0,0,0.6), 0 0 15px ${isLowVision ? 'rgba(168,85,247,0.3)' : 'rgba(56,189,248,0.2)'};
       color: #f8fafc;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       font-size: 11.5px;
@@ -3081,8 +3162,8 @@
     `;
     pill.innerHTML = `
       <span style="display: flex; align-items: center; gap: 6px;">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
-        <span><strong>Color Vision Lens:</strong> ${LABELS[filterType] || filterType}</span>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="${isLowVision ? '#c084fc' : '#38bdf8'}" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+        <span><strong>${isLowVision ? 'Low Vision Lens' : 'Color Vision Lens'}:</strong> ${LABELS[filterType] || filterType}</span>
       </span>
       <button id="__af_cvd_reset_btn__" type="button" style="background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); color: #fff; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 12px; cursor: pointer;">Reset Normal</button>
     `;

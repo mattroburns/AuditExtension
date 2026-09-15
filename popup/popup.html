@@ -65,21 +65,40 @@
       </form>
     </section>
 
-    <!-- Color Vision Deficiency (CVD) Emulation Bar -->
+    <!-- Vision Simulation Suite (Color Blindness & Low Vision) -->
     <section class="cvd-section">
-      <div class="cvd-bar">
-        <div class="cvd-title-group">
-          <span class="cvd-icon">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
-          </span>
-          <span class="cvd-title">Color Blindness Lens:</span>
+      <div class="cvd-container">
+        <!-- Color Blindness -->
+        <div class="cvd-row">
+          <div class="cvd-title-group">
+            <span class="cvd-icon">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+            </span>
+            <span class="cvd-title">Color Blindness:</span>
+          </div>
+          <div class="cvd-pills" id="cvd-pills">
+            <button type="button" class="cvd-pill active" data-cvd="none" title="Normal visual spectrum">Normal</button>
+            <button type="button" class="cvd-pill" data-cvd="protanopia" title="Protanopia: Red-blind / Red-weak simulation (~1.3% males)">Protanopia</button>
+            <button type="button" class="cvd-pill" data-cvd="deuteranopia" title="Deuteranopia: Green-blind / Green-weak simulation (~5% males, most common)">Deuteranopia</button>
+            <button type="button" class="cvd-pill" data-cvd="tritanopia" title="Tritanopia: Blue/Yellow-blind simulation (rare)">Tritanopia</button>
+            <button type="button" class="cvd-pill" data-cvd="achromatopsia" title="Achromatopsia: Monochromacy / Complete color blindness">Monochrome</button>
+          </div>
         </div>
-        <div class="cvd-pills" id="cvd-pills">
-          <button type="button" class="cvd-pill active" data-cvd="none" title="Normal visual spectrum">Normal</button>
-          <button type="button" class="cvd-pill" data-cvd="protanopia" title="Protanopia: Red-blind / Red-weak simulation (~1.3% males)">Protanopia</button>
-          <button type="button" class="cvd-pill" data-cvd="deuteranopia" title="Deuteranopia: Green-blind / Green-weak simulation (~5% males, most common)">Deuteranopia</button>
-          <button type="button" class="cvd-pill" data-cvd="tritanopia" title="Tritanopia: Blue/Yellow-blind simulation (rare)">Tritanopia</button>
-          <button type="button" class="cvd-pill" data-cvd="achromatopsia" title="Achromatopsia: Monochromacy / Complete color blindness">Monochrome</button>
+
+        <!-- Low Vision & Eye Conditions -->
+        <div class="cvd-row cvd-row-lowvision">
+          <div class="cvd-title-group">
+            <span class="cvd-icon lowvision-icon">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+            </span>
+            <span class="cvd-title">Low Vision:</span>
+          </div>
+          <div class="cvd-pills">
+            <button type="button" class="cvd-pill" data-cvd="cataracts" title="Cataracts: Acuity loss, cloudy lens, and contrast wash">Cataracts (Blur)</button>
+            <button type="button" class="cvd-pill" data-cvd="glaucoma" title="Glaucoma: Severe peripheral vision loss (Tunnel Vision)">Glaucoma (Tunnel)</button>
+            <button type="button" class="cvd-pill" data-cvd="macular" title="Macular Degeneration: Central vision loss / Scotoma">Macular (Central)</button>
+            <button type="button" class="cvd-pill" data-cvd="photophobia" title="Photophobia: Extreme glare sensitivity (Inverted High Contrast)">Photophobia</button>
+          </div>
         </div>
       </div>
     </section>

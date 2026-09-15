@@ -50,14 +50,18 @@ A standalone Google Chrome Extension (Manifest V3) that evaluates any web page a
    - **In-Page Tab-Trail Overlay**: Click **"🗺️ Show Tab-Trail Overlay"** to project numbered glowing badges (`#1, #2, #3...`) directly onto each interactive element on the target page, connected by curved directional SVG paths.
    - **Interactive Tab Sequence Cards**: Browse each focusable stop in the extension panel, view element roles/labels/selectors, and click **"🎯 Locate"** to highlight that element.
 
-8. **Color Blindness (CVD) Emulation Lens**:
-   - **One-Click Live Emulation**: Switch between vision profiles directly from the extension bar:
+8. **Vision Simulation Suite (Color Blindness & Low Vision)**:
+   - **Color Vision Deficiency (CVD) Lenses**:
      - **Protanopia** (Red-blind / L-cone deficiency)
      - **Deuteranopia** (Green-blind / M-cone deficiency, ~5% of males)
      - **Tritanopia** (Blue/Yellow-blind / S-cone deficiency)
      - **Achromatopsia** (Monochromacy / Complete color blindness)
-   - **Mathematically Accurate SVG Matrices**: Uses calibrated color transformation matrices applied live to the page DOM.
-   - **Persistent Floating Reset Pill**: Displays active simulation state on the webpage with a one-click **"Reset Normal"** button.
+   - **Low Vision & Eye Condition Lenses**:
+     - **Cataracts (Blur)**: Simulates cloudy lenses, visual acuity reduction, and washed-out contrast to test readability of typography and controls without sharp focus.
+     - **Glaucoma (Tunnel Vision)**: Simulates peripheral vision loss with an interactive central visual cone that tracks cursor movements across the page.
+     - **Macular Degeneration (Central Scotoma)**: Simulates central field vision loss, placing a blind spot in the direct line of sight.
+     - **Photophobia (Inverted Contrast)**: Simulates high-contrast inverted dark mode for individuals with severe glare and light sensitivity.
+   - **Persistent Floating Reset Pill**: Displays the active simulation state on the webpage with a one-click **"Reset Normal"** button.
 
 ---
 
