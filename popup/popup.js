@@ -1435,16 +1435,21 @@ function renderTabOrderSequence(tabOrder) {
   // Render cards
   container.innerHTML = tabOrder.items.map((item, idx) => {
     const isWarn = item.hasPositiveTabIndex || item.hasVisualJump || item.hasMissingName;
+    const isRadioGroup = !!item.isRadioGroupLeader;
     return `
-      <div class="tab-sequence-card ${isWarn ? 'card-warn' : ''}" data-step-index="${idx}">
+      <div class="tab-sequence-card ${isWarn ? 'card-warn' : ''} ${isRadioGroup ? 'card-radiogroup' : ''}" data-step-index="${idx}">
         <div class="tab-card-left">
-          <span class="tab-badge-num ${isWarn ? 'warn' : ''}">${item.step}</span>
+          <span class="tab-badge-num ${isWarn ? 'warn' : ''} ${isRadioGroup ? 'radiogroup' : ''}">
+            ${isRadioGroup ? '🔘' : item.step}
+          </span>
           <div class="tab-card-info">
             <div class="tab-card-title-row">
               <span class="tab-role-tag">&lt;${escapeHtml(item.tagName)}&gt;</span>
+              ${isRadioGroup ? `<span class="tab-badge-radiogroup">Radio Group (1 of ${item.radioGroupTotal})</span>` : ''}
               <span class="tab-name-text" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span>
             </div>
             <span class="tab-selector-text" title="${escapeHtml(item.selector)}">${escapeHtml(item.selector)}</span>
+            ${isRadioGroup ? `<span class="tab-radiogroup-hint">ℹ️ Tab enters group • Next Tab exits group • Arrow keys navigate choices</span>` : ''}
             ${item.warningText ? `<span class="tab-warning-text">⚠️ ${escapeHtml(item.warningText)}</span>` : ''}
           </div>
         </div>

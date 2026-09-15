@@ -1292,6 +1292,101 @@
    * Detects visual order jumps, missing accessible names, and skip-to-content links.
    * @returns {Object} Structured tab order data
    */
+  /**
+   * Resolves the actual visible DOM element and bounding rect for interactive controls.
+   * Modern web forms frequently hide native inputs (e.g. input[type="radio"], input[type="checkbox"])
+   * off-screen using `position: absolute; left: -9999px;` or `clip: rect(0,0,0,0);` while rendering
+   * custom labels, cards, or styled wrappers.
+   * This helper finds the visible interactive target so indicators, badges, and focus trails
+   * render accurately on-screen rather than flying off the canvas.
+   * @param {Element} el
+   * @returns {{ visualElement: Element, rect: { top: number, left: number, width: number, height: number } }}
+   */
+  function resolveVisualTarget(el) {
+    if (!el || typeof el.getBoundingClientRect !== 'function') {
+      return { visualElement: el, rect: { top: 0, left: 0, width: 0, height: 0 } };
+    }
+
+    const rect = el.getBoundingClientRect();
+    const isOffscreen = rect.left < -20 || rect.top < -20 || rect.left > (window.innerWidth * 2);
+    const isTinyOrZero = rect.width <= 2 || rect.height <= 2;
+
+    if (isOffscreen || isTinyOrZero) {
+      // 1. Check associated <label>
+      let label = null;
+      if (el.labels && el.labels.length > 0) {
+        label = el.labels[0];
+      } else if (el.id) {
+        try {
+          label = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+        } catch (_) {}
+      }
+      if (!label) {
+        label = el.closest('label');
+      }
+
+      if (label) {
+        const lRect = label.getBoundingClientRect();
+        if (lRect.width > 2 && lRect.height > 2 && lRect.left >= 0 && lRect.top >= 0) {
+          return {
+            visualElement: label,
+            rect: {
+              top: Math.round(lRect.top),
+              left: Math.round(lRect.left),
+              width: Math.round(lRect.width),
+              height: Math.round(lRect.height),
+            }
+          };
+        }
+      }
+
+      // 2. Custom card, wrapper, or button container
+      const wrapper = el.closest('.radio-card, .custom-radio, .form-check, .checkbox-card, .radio-btn, .option-card, [role="radio"], [role="checkbox"], .choice-card, .field-wrapper, .input-group');
+      if (wrapper) {
+        const wRect = wrapper.getBoundingClientRect();
+        if (wRect.width > 2 && wRect.height > 2 && wRect.left >= 0 && wRect.top >= 0) {
+          return {
+            visualElement: wrapper,
+            rect: {
+              top: Math.round(wRect.top),
+              left: Math.round(wRect.left),
+              width: Math.round(wRect.width),
+              height: Math.round(wRect.height),
+            }
+          };
+        }
+      }
+
+      // 3. Ascend to closest visible ancestor
+      let parent = el.parentElement;
+      while (parent && parent !== document.body && parent !== document.documentElement) {
+        const pRect = parent.getBoundingClientRect();
+        if (pRect.width > 15 && pRect.height > 15 && pRect.left >= 0 && pRect.left < window.innerWidth && pRect.top >= 0) {
+          return {
+            visualElement: parent,
+            rect: {
+              top: Math.round(pRect.top),
+              left: Math.round(pRect.left),
+              width: Math.round(pRect.width),
+              height: Math.round(pRect.height),
+            }
+          };
+        }
+        parent = parent.parentElement;
+      }
+    }
+
+    return {
+      visualElement: el,
+      rect: {
+        top: Math.round(Math.max(0, rect.top)),
+        left: Math.round(Math.max(0, rect.left)),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height),
+      }
+    };
+  }
+
   let lastTabOrderElements = [];
 
   function evaluateTabNavigationOrder() {
@@ -1299,7 +1394,7 @@
       'a[href], button, input, select, textarea, [tabindex], summary, iframe, [contenteditable], audio[controls], video[controls], area[href]'
     ));
 
-    const focusable = [];
+    const rawFocusable = [];
 
     for (const el of candidates) {
       if (el.hasAttribute('disabled')) continue;
@@ -1327,28 +1422,36 @@
       const style = window.getComputedStyle(el);
       if (style.display === 'none' || style.visibility === 'hidden') continue;
 
-      const rect = el.getBoundingClientRect();
+      const { visualElement, rect } = resolveVisualTarget(el);
       const isZeroSize = rect.width === 0 && rect.height === 0;
       const textContent = (el.textContent || '').trim().toLowerCase();
       const isSkipLink = textContent.includes('skip to') || textContent.includes('skip navigation') || (el.getAttribute('href') || '').startsWith('#');
 
-      if (isZeroSize && !isSkipLink) {
-        if (el.getClientRects().length === 0) continue;
-      }
+      if (isZeroSize && !isSkipLink && rect.left <= 0) continue;
 
+      // Robust accessible name resolution across native form controls and custom ARIA elements
       let accessibleName = '';
       if (el.getAttribute('aria-label')) {
         accessibleName = el.getAttribute('aria-label').trim();
       } else if (el.getAttribute('aria-labelledby')) {
         const ids = el.getAttribute('aria-labelledby').split(/\s+/);
         accessibleName = ids.map(id => document.getElementById(id)?.textContent || '').join(' ').trim();
-      } else if (el.tagName === 'INPUT' && (el.type === 'submit' || el.type === 'button')) {
-        accessibleName = el.value || '';
-      } else if (el.tagName === 'INPUT' && el.placeholder) {
-        accessibleName = el.placeholder;
-      } else if (el.title) {
+      } else if (el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA') {
+        const labelEl = (el.labels && el.labels[0])
+          ? el.labels[0]
+          : (el.id ? document.querySelector(`label[for="${CSS.escape(el.id)}"]`) : el.closest('label'));
+        if (labelEl) {
+          accessibleName = (labelEl.innerText || labelEl.textContent || '').trim();
+        } else if (el.type === 'submit' || el.type === 'button') {
+          accessibleName = el.value || '';
+        } else if (el.placeholder) {
+          accessibleName = el.placeholder;
+        }
+      }
+      if (!accessibleName && el.title) {
         accessibleName = el.title;
-      } else {
+      }
+      if (!accessibleName) {
         accessibleName = (el.innerText || el.textContent || '').trim();
       }
 
@@ -1359,23 +1462,74 @@
         role = 'link';
       }
 
-      focusable.push({
+      const isRadio = (el.tagName === 'INPUT' && el.type === 'radio') || el.getAttribute('role') === 'radio';
+      let radioGroupName = null;
+      if (isRadio) {
+        if (el.tagName === 'INPUT') {
+          const formId = el.form ? (el.form.id || el.form.name || 'form') : 'no-form';
+          radioGroupName = `${formId}::${el.name || el.id || 'unnamed-radio'}`;
+        } else {
+          const groupContainer = el.closest('[role="radiogroup"]') || el.closest('form') || el.parentElement;
+          const containerId = groupContainer ? (groupContainer.id || groupContainer.className || 'radiogroup') : 'radiogroup';
+          radioGroupName = `aria::${containerId}::${el.getAttribute('name') || 'radio'}`;
+        }
+      }
+
+      rawFocusable.push({
         element: el,
+        visualElement,
         selector: getUniqueSelector(el),
         tagName: el.tagName.toLowerCase(),
         role,
-        name: accessibleName.slice(0, 100) || '(No accessible name)',
+        name: accessibleName.replace(/\s+/g, ' ').slice(0, 100) || '(No accessible name)',
         tabIndex,
         hasExplicitTabIndex,
         isSkipLink,
-        rect: {
-          top: Math.round(rect.top),
-          left: Math.round(rect.left),
-          width: Math.round(rect.width),
-          height: Math.round(rect.height),
-        }
+        isRadio,
+        radioGroupName,
+        checked: el.checked || el.getAttribute('aria-checked') === 'true',
+        rect,
       });
     }
+
+    // Process Radio Groups:
+    // In HTML/WAI-ARIA sequential keyboard navigation, each radio button group forms
+    // a single logical tab stop:
+    // - If one option is checked, pressing Tab moves focus directly to that checked radio button.
+    // - If NO option is checked, pressing Tab moves focus to the first enabled radio button.
+    // Once inside the group, pressing Tab moves OUT of the group to the next section/control,
+    // rather than tabbing sequentially between individual answers.
+    // Arrow keys (↑ / ↓ / ← / →) are used by keyboard users to change selection within the group.
+    const radioGroups = new Map();
+    rawFocusable.forEach(item => {
+      if (item.isRadio && item.radioGroupName) {
+        if (!radioGroups.has(item.radioGroupName)) {
+          radioGroups.set(item.radioGroupName, []);
+        }
+        radioGroups.get(item.radioGroupName).push(item);
+      }
+    });
+
+    const activeRadioStops = new Set();
+    radioGroups.forEach((items) => {
+      const checkedItem = items.find(it => it.checked);
+      const activeItem = checkedItem || items[0];
+      if (activeItem) {
+        activeRadioStops.add(activeItem);
+        activeItem.isRadioGroupLeader = true;
+        activeItem.radioGroupTotal = items.length;
+        activeItem.role = `radio group (1 of ${items.length})`;
+        activeItem.radioOptions = items.map(it => it.name).filter(Boolean);
+      }
+    });
+
+    // Filter out radio buttons that are not the active tab stop for their group
+    const focusable = rawFocusable.filter(item => {
+      if (item.isRadio && item.radioGroupName) {
+        return activeRadioStops.has(item);
+      }
+      return true;
+    });
 
     // HTML5 sequential tab order sorting
     const positiveTabindexList = focusable
@@ -1446,6 +1600,9 @@
         hasMissingName,
         warningText,
         rect: item.rect,
+        isRadioGroupLeader: !!item.isRadioGroupLeader,
+        radioGroupTotal: item.radioGroupTotal || 1,
+        radioOptions: item.radioOptions || [],
       };
     });
 
@@ -2694,17 +2851,28 @@
       lastTabOrderElements.forEach((item, idx) => {
         const el = item.element;
         if (!el || !el.isConnected) return;
-        const r = el.getBoundingClientRect();
-        const pageX = r.left + scrollX;
-        const pageY = r.top + scrollY;
-        const centerX = pageX + r.width / 2;
-        const centerY = pageY + r.height / 2;
 
-        coords.push({ x: centerX, y: centerY, top: pageY, left: pageX, item, el, step: idx + 1 });
+        // Resolve visible interactive target (handles visually hidden inputs and custom labels)
+        const targetRes = typeof resolveVisualTarget === 'function' ? resolveVisualTarget(el) : { visualElement: el, rect: el.getBoundingClientRect() };
+        const targetEl = item.visualElement || targetRes.visualElement || el;
+        const r = targetRes.rect || targetEl.getBoundingClientRect();
+
+        // Safety clamp so badges and connector lines never fly off-screen
+        const pageX = Math.max(16, (r.left >= 0 ? r.left : 16) + scrollX);
+        const pageY = Math.max(16, (r.top >= 0 ? r.top : 16) + scrollY);
+        const centerX = pageX + Math.max(10, (r.width > 0 ? r.width / 2 : 12));
+        const centerY = pageY + Math.max(10, (r.height > 0 ? r.height / 2 : 12));
+
+        coords.push({ x: centerX, y: centerY, top: pageY, left: pageX, item, el, targetEl, step: idx + 1 });
 
         const badge = document.createElement('div');
         const isWarn = item.tabIndex > 0;
-        const bg = isWarn ? '#f59e0b' : '#009ED4';
+        const isRadioGroup = !!item.isRadioGroupLeader;
+        const bg = isWarn ? '#f59e0b' : (isRadioGroup ? '#8b5cf6' : '#009ED4');
+        const glow = isWarn
+          ? 'rgba(245,158,11,0.8)'
+          : (isRadioGroup ? 'rgba(139,92,246,0.8)' : 'rgba(0,158,212,0.8)');
+
         badge.style.cssText = `
           position: absolute;
           top: ${pageY - 10}px;
@@ -2719,19 +2887,31 @@
           padding: 0 5px;
           text-align: center;
           border-radius: 10px;
-          box-shadow: 0 0 10px ${isWarn ? 'rgba(245,158,11,0.8)' : 'rgba(0,158,212,0.8)'};
+          box-shadow: 0 0 10px ${glow};
           pointer-events: auto;
           cursor: pointer;
           z-index: 2147483646;
           user-select: none;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 3px;
         `;
-        badge.title = `Step #${idx + 1}: <${item.tagName}> "${item.name}"\nRole: ${item.role}${item.tabIndex > 0 ? '\n⚠️ Positive tabindex=' + item.tabIndex : ''}`;
-        badge.textContent = `${idx + 1}`;
+
+        if (isRadioGroup) {
+          badge.title = `Step #${idx + 1}: Radio Group "${item.name}" (${item.radioGroupTotal} choices)\nℹ️ Tab enters group here; subsequent Tab exits to next section.\nUse Arrow keys (↑/↓/←/→) to select within group.`;
+          badge.innerHTML = `<span style="font-size: 8px;">🔘</span><span>${idx + 1}</span>`;
+        } else {
+          badge.title = `Step #${idx + 1}: <${item.tagName}> "${item.name}"\nRole: ${item.role}${item.tabIndex > 0 ? '\n⚠️ Positive tabindex=' + item.tabIndex : ''}`;
+          badge.textContent = `${idx + 1}`;
+        }
 
         badge.addEventListener('click', (e) => {
           e.stopPropagation();
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          el.focus({ preventScroll: true });
+          targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          try {
+            el.focus({ preventScroll: true });
+          } catch (_) {}
         });
 
         badgesContainer.appendChild(badge);
@@ -2741,7 +2921,8 @@
         const p1 = coords[i];
         const p2 = coords[i + 1];
         const isWarn = p2.item.tabIndex > 0;
-        const color = isWarn ? '#f59e0b' : '#009ED4';
+        const isRadioGroup = !!p2.item.isRadioGroupLeader;
+        const color = isWarn ? '#f59e0b' : (isRadioGroup ? '#a78bfa' : '#009ED4');
         const marker = isWarn ? 'url(#__af_arrow_warn__)' : 'url(#__af_arrow_normal__)';
 
         const dx = p2.x - p1.x;
@@ -2754,7 +2935,7 @@
         path.setAttribute('d', `M ${p1.x} ${p1.y} Q ${cx} ${cy} ${p2.x} ${p2.y}`);
         path.setAttribute('stroke', color);
         path.setAttribute('stroke-width', '2.5');
-        path.setAttribute('stroke-dasharray', isWarn ? '5,3' : '6,4');
+        path.setAttribute('stroke-dasharray', isWarn ? '5,3' : (isRadioGroup ? '6,3' : '6,4'));
         path.setAttribute('fill', 'none');
         path.setAttribute('opacity', '0.85');
         path.setAttribute('marker-end', marker);
