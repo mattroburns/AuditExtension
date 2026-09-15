@@ -9,7 +9,7 @@ A standalone Google Chrome Extension (Manifest V3) that evaluates any web page a
 1. **Toolbar Quick-Audit**:
    - Click the extension icon from Chrome's toolbar.
    - Pre-fills the active tab's URL automatically.
-   - Enter any custom URL and click **"Go"** to audit.
+   - Enter any custom URL and click **"Run Audit"** to audit.
 
 2. **Strictly Non-Branded & Score-Based**:
    - Zero vendor branding, user names, outreach proposals, or commercial pricing.
@@ -65,29 +65,29 @@ A standalone Google Chrome Extension (Manifest V3) that evaluates any web page a
 
 ---
 
-## Installation Instructions (Developer Mode)
+## Installation Instructions (Chrome / Edge / Brave)
 
-To install and use this extension in Google Chrome:
+1. **Clone or Download** this repository:
+   ```bash
+   git clone https://github.com/mattroburns/AuditExtension.git
+   ```
+   *(Or click **Code** > **Download ZIP** on GitHub and extract the archive).*
 
-1. Open **Google Chrome**.
-2. Navigate to: `chrome://extensions/`
-3. Toggle on **"Developer mode"** (switch in the top-right corner).
-4. Click the **"Load unpacked"** button in the top-left corner.
-5. Select this folder:
-   ```
-   c:\Users\mattr\Documents\AuditExtension
-   ```
-6. The extension **"Matt's Accessibility Tool"** will now appear in your extensions list.
-7. Click the **Extensions puzzle piece icon (🧩)** in Chrome's top toolbar, find the extension, and click the **Pin (📌)** icon to keep it visible on your toolbar.
+2. Open **Google Chrome** (or any Chromium browser such as Microsoft Edge, Brave, or Opera).
+3. Navigate to: `chrome://extensions/` (or `edge://extensions/`).
+4. Toggle on **"Developer mode"** (toggle switch in the top-right corner).
+5. Click the **"Load unpacked"** button in the top-left corner.
+6. Select the downloaded or cloned **`AuditExtension`** folder (the folder containing `manifest.json`).
+7. **Matt's Accessibility Tool** is now installed! Click the **Extensions puzzle piece icon (🧩)** in your browser toolbar, find the extension, and click the **Pin (📌)** icon to keep it visible on your toolbar.
 
 ---
 
 ## How to Run an Audit
 
 1. Navigate to any website you want to test (e.g. `https://example.com` or `https://news.ycombinator.com`).
-2. Click the **🛡️ WCAG Auditor** icon in the toolbar.
+2. Click the **Matt's Accessibility Tool** icon in the browser toolbar.
 3. The current page's URL will automatically appear in the input field.
-4. Click **"⚡ Go"**:
+4. Click **"⚡ Run Audit"** (or press Enter):
    - The extension will inject the WCAG 2.2 engine into the page.
    - Within 2–4 seconds, the full audit scorecard, key metrics, and issues table will render.
 5. **Locate & Highlight Issues on the Page**:
