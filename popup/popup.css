@@ -1427,6 +1427,370 @@ svg {
   }
 }
 
+/* ==========================================================================
+   Color Vision Deficiency (CVD) Emulation Bar
+   ========================================================================== */
+.cvd-section {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+}
+
+.cvd-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cvd-title-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.cvd-icon {
+  color: #38bdf8;
+  display: flex;
+  align-items: center;
+}
+
+.cvd-pills {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.cvd-pill {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 10.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cvd-pill:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-main);
+  border-color: rgba(56, 189, 248, 0.4);
+}
+
+.cvd-pill.active {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border-color: #38bdf8;
+  font-weight: 600;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.2);
+}
+
+/* ==========================================================================
+   Tab Navigation Order & Keyboard Drawer
+   ========================================================================== */
+.tab-order-section {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transition: border-color 0.2s ease;
+}
+
+.tab-order-section:hover {
+  border-color: var(--border-medium);
+}
+
+.tab-order-header {
+  padding: 12px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+  background: var(--bg-surface);
+  transition: background 0.15s ease;
+}
+
+.tab-order-header:hover {
+  background: var(--bg-elevated);
+}
+
+.tab-order-header-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tab-order-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 158, 212, 0.12);
+  color: #009ED4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tab-order-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.tab-order-subtitle {
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+
+.tab-order-badge-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tab-order-status-badge {
+  background: rgba(0, 158, 212, 0.15);
+  border: 1px solid rgba(0, 158, 212, 0.35);
+  color: #38bdf8;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.tab-order-toggle-btn {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 10.5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tab-order-toggle-btn:hover {
+  color: #fff;
+  border-color: var(--border-medium);
+}
+
+.tab-order-panel-body {
+  padding: 0 14px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.tab-order-summary-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding-top: 12px;
+}
+
+.tab-order-strip-item {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tab-order-strip-label {
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.tab-val, .tab-status-val, .tab-positive-val {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.tab-positive-val.has-warn {
+  color: #ef4444;
+}
+
+.tab-order-actions-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(0, 158, 212, 0.08);
+  border: 1px solid rgba(0, 158, 212, 0.25);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+}
+
+.btn-tab-trail {
+  background: #009ED4;
+  color: #ffffff;
+  border: none;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 2px 6px rgba(0, 158, 212, 0.3);
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-tab-trail:hover {
+  background: #0284c7;
+  transform: translateY(-1px);
+}
+
+.btn-tab-trail.active {
+  background: #ef4444;
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
+}
+
+.tab-trail-hint {
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+
+.tab-sequence-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.tab-sequence-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.tab-sequence-card:hover {
+  background: var(--bg-card-hover);
+  border-color: rgba(0, 158, 212, 0.4);
+}
+
+.tab-sequence-card.card-warn {
+  border-left: 3px solid #f59e0b;
+}
+
+.tab-card-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.tab-badge-num {
+  background: #009ED4;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tab-badge-num.warn {
+  background: #f59e0b;
+}
+
+.tab-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tab-card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tab-role-tag {
+  background: rgba(255, 255, 255, 0.08);
+  color: #cbd5e1;
+  font-size: 9.5px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+}
+
+.tab-name-text {
+  font-size: 11px;
+  font-weight: 500;
+  color: #f8fafc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tab-selector-text {
+  font-size: 9.5px;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tab-warning-text {
+  font-size: 9.5px;
+  color: #fb923c;
+  font-weight: 500;
+}
+
+.btn-locate-tab {
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  font-size: 10px;
+  padding: 3px 7px;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.btn-locate-tab:hover {
+  background: rgba(0, 158, 212, 0.15);
+  border-color: #009ED4;
+  color: #38bdf8;
+}
+
 .hidden {
   display: none !important;
 }

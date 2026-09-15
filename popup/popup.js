@@ -431,6 +431,94 @@ function setupEventListeners() {
   document.getElementById('btn-launch-page-sim')?.addEventListener('click', () => {
     toggleOnPageSimulator();
   });
+
+  // Tab Order Drawer Toggle
+  const tabHeader = document.getElementById('tab-order-header-toggle');
+  const tabToggleBtn = document.getElementById('tab-order-toggle-btn');
+  const tabBody = document.getElementById('tab-order-panel-body');
+
+  const toggleTabPanel = () => {
+    if (!tabBody) return;
+    const isHidden = tabBody.classList.toggle('hidden');
+    if (tabToggleBtn) {
+      tabToggleBtn.textContent = isHidden ? '▼ View Sequence' : '▲ Hide Sequence';
+    }
+  };
+
+  tabHeader?.addEventListener('click', () => {
+    toggleTabPanel();
+  });
+  tabToggleBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleTabPanel();
+  });
+
+  // Toggle Tab-Trail Overlay on Web Page
+  document.getElementById('btn-toggle-tab-trail')?.addEventListener('click', async () => {
+    const btn = document.getElementById('btn-toggle-tab-trail');
+    const label = document.getElementById('tab-trail-btn-label');
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+      const targetTab = tab || (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
+      if (!targetTab?.id) return;
+
+      const res = await chrome.scripting.executeScript({
+        target: { tabId: targetTab.id },
+        func: () => {
+          // @ts-ignore
+          if (typeof window.__auditforgeToggleTabTrail === 'function') {
+            return window.__auditforgeToggleTabTrail();
+          }
+          return { active: false };
+        }
+      });
+
+      const trailResult = res[0]?.result;
+      if (trailResult && trailResult.active) {
+        btn?.classList.add('active');
+        if (label) label.textContent = '✕ Hide Tab-Trail Overlay';
+      } else {
+        btn?.classList.remove('active');
+        if (label) label.textContent = '🗺️ Show Tab-Trail Overlay';
+      }
+    } catch (err) {
+      console.warn('Could not toggle tab trail on page:', err);
+    }
+  });
+
+  // Color Blindness Lens Buttons
+  document.querySelectorAll('.cvd-pill').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      document.querySelectorAll('.cvd-pill').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const cvdType = btn.getAttribute('data-cvd') || 'none';
+
+      try {
+        const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+        const targetTab = tab || (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
+        if (!targetTab?.id) return;
+
+        // Ensure audit runner is injected before setting filter
+        await chrome.scripting.executeScript({
+          target: { tabId: targetTab.id },
+          files: ['content/audit-runner.js'],
+        });
+
+        await chrome.scripting.executeScript({
+          target: { tabId: targetTab.id },
+          func: (type) => {
+            // @ts-ignore
+            if (typeof window.__auditforgeSetColorFilter === 'function') {
+              return window.__auditforgeSetColorFilter(type);
+            }
+          },
+          args: [cvdType],
+        });
+      } catch (err) {
+        console.warn('Could not apply color blindness filter:', err);
+      }
+    });
+  });
 }
 
 /**
@@ -664,6 +752,7 @@ function renderScorecard(audit) {
   if (rText) rText.textContent = String(seq.filter(s => s.rotorCategory === 'text').length);
 
   renderSpeechTimeline(audit.speechSequence || []);
+  renderTabOrderSequence(audit.tabOrder);
 
   // Key Metrics
   const mCrit = document.getElementById('metric-critical');
@@ -1276,6 +1365,120 @@ function renderSpeechTimeline(speechSequence) {
     cardEl.addEventListener('click', (e) => {
       if (e.target.closest('.btn-speak-speech') || e.target.closest('.btn-highlight-speech')) return;
       triggerHighlight(btnLocate);
+    });
+  });
+}
+
+/**
+ * Renders the sequential keyboard tab navigation order list
+ * @param {Object} tabOrder
+ */
+function renderTabOrderSequence(tabOrder) {
+  const container = document.getElementById('tab-sequence-list');
+  const badgeEl = document.getElementById('tab-order-status-badge');
+  const countEl = document.getElementById('tab-total-count');
+  const flowEl = document.getElementById('tab-flow-status');
+  const posEl = document.getElementById('tab-positive-count');
+  const skipEl = document.getElementById('tab-skip-status');
+
+  if (!container) return;
+
+  if (!tabOrder || !tabOrder.items || tabOrder.items.length === 0) {
+    if (badgeEl) badgeEl.textContent = '0 Controls';
+    if (countEl) countEl.textContent = '0';
+    if (flowEl) flowEl.textContent = 'N/A';
+    if (posEl) posEl.textContent = '0';
+    if (skipEl) skipEl.textContent = 'Not Checked';
+    container.innerHTML = `
+      <div style="padding: 24px; text-align: center; color: var(--text-muted); font-size: 11.5px;">
+        No focusable interactive elements detected on this page.
+      </div>
+    `;
+    return;
+  }
+
+  // Update summary strip
+  if (badgeEl) {
+    badgeEl.textContent = `${tabOrder.totalElements} Controls (${tabOrder.flowStatus})`;
+    if (tabOrder.flowStatus === 'Sequential') {
+      badgeEl.style.color = '#34d399';
+      badgeEl.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+    } else if (tabOrder.flowStatus === 'Needs Review') {
+      badgeEl.style.color = '#fbbf24';
+      badgeEl.style.borderColor = 'rgba(245, 158, 11, 0.4)';
+    } else {
+      badgeEl.style.color = '#f87171';
+      badgeEl.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+    }
+  }
+
+  if (countEl) countEl.textContent = String(tabOrder.totalElements);
+  if (flowEl) {
+    flowEl.textContent = tabOrder.flowStatus;
+    flowEl.style.color = tabOrder.flowStatus === 'Sequential' ? '#34d399' : (tabOrder.flowStatus === 'Needs Review' ? '#fbbf24' : '#f87171');
+  }
+  if (posEl) {
+    posEl.textContent = String(tabOrder.positiveTabIndexCount);
+    if (tabOrder.positiveTabIndexCount > 0) {
+      posEl.classList.add('has-warn');
+      posEl.style.color = '#f87171';
+    } else {
+      posEl.classList.remove('has-warn');
+      posEl.style.color = '#34d399';
+    }
+  }
+  if (skipEl) {
+    skipEl.textContent = tabOrder.hasSkipLink ? 'Detected' : 'Missing';
+    skipEl.style.color = tabOrder.hasSkipLink ? '#34d399' : '#fbbf24';
+  }
+
+  // Render cards
+  container.innerHTML = tabOrder.items.map((item, idx) => {
+    const isWarn = item.hasPositiveTabIndex || item.hasVisualJump || item.hasMissingName;
+    return `
+      <div class="tab-sequence-card ${isWarn ? 'card-warn' : ''}" data-step-index="${idx}">
+        <div class="tab-card-left">
+          <span class="tab-badge-num ${isWarn ? 'warn' : ''}">${item.step}</span>
+          <div class="tab-card-info">
+            <div class="tab-card-title-row">
+              <span class="tab-role-tag">&lt;${escapeHtml(item.tagName)}&gt;</span>
+              <span class="tab-name-text" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span>
+            </div>
+            <span class="tab-selector-text" title="${escapeHtml(item.selector)}">${escapeHtml(item.selector)}</span>
+            ${item.warningText ? `<span class="tab-warning-text">⚠️ ${escapeHtml(item.warningText)}</span>` : ''}
+          </div>
+        </div>
+        <button type="button" class="btn-locate-tab" title="Scroll to and highlight this tab stop on page">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>
+          <span>Locate</span>
+        </button>
+      </div>
+    `;
+  }).join('');
+
+  // Attach Locate event listeners
+  container.querySelectorAll('.tab-sequence-card').forEach((cardEl) => {
+    const idx = parseInt(cardEl.getAttribute('data-step-index') || '-1', 10);
+    const item = tabOrder.items[idx];
+    if (!item || !item.selector) return;
+
+    const triggerLocate = () => {
+      runInPageHighlight(item.selector, {
+        impact: item.hasPositiveTabIndex ? 'serious' : (item.hasVisualJump ? 'moderate' : 'minor'),
+        help: `Tab Order Stop #${item.step} (${item.role}): ${item.name}`,
+        wcagRule: item.warningText || `Tab Sequence #${item.step} (${item.tagName})`,
+        target: item.selector,
+      });
+    };
+
+    cardEl.querySelector('.btn-locate-tab')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      triggerLocate();
+    });
+
+    cardEl.addEventListener('click', (e) => {
+      if (e.target.closest('.btn-locate-tab')) return;
+      triggerLocate();
     });
   });
 }

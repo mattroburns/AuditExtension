@@ -1287,6 +1287,187 @@
   }
 
   /**
+   * Evaluates sequential keyboard tab navigation order and detects flow anomalies.
+   * Elements with positive tabindex (> 0) precede normal elements and disrupt natural order.
+   * Detects visual order jumps, missing accessible names, and skip-to-content links.
+   * @returns {Object} Structured tab order data
+   */
+  let lastTabOrderElements = [];
+
+  function evaluateTabNavigationOrder() {
+    const candidates = Array.from(document.querySelectorAll(
+      'a[href], button, input, select, textarea, [tabindex], summary, iframe, [contenteditable], audio[controls], video[controls], area[href]'
+    ));
+
+    const focusable = [];
+
+    for (const el of candidates) {
+      if (el.hasAttribute('disabled')) continue;
+      if (el.tagName === 'INPUT' && el.type === 'hidden') continue;
+
+      const rawTabIndex = el.getAttribute('tabindex');
+      let tabIndex = 0;
+      let hasExplicitTabIndex = false;
+
+      if (rawTabIndex !== null) {
+        const parsed = parseInt(rawTabIndex, 10);
+        if (!isNaN(parsed)) {
+          tabIndex = parsed;
+          hasExplicitTabIndex = true;
+        }
+      } else {
+        const naturallyFocusable = /^(a|button|input|select|textarea|summary|iframe)$/i.test(el.tagName) || el.hasAttribute('contenteditable');
+        if (!naturallyFocusable) continue;
+      }
+
+      if (tabIndex < 0) continue;
+      if (el.closest('[inert]')) continue;
+
+      // Check visibility
+      const style = window.getComputedStyle(el);
+      if (style.display === 'none' || style.visibility === 'hidden') continue;
+
+      const rect = el.getBoundingClientRect();
+      const isZeroSize = rect.width === 0 && rect.height === 0;
+      const textContent = (el.textContent || '').trim().toLowerCase();
+      const isSkipLink = textContent.includes('skip to') || textContent.includes('skip navigation') || (el.getAttribute('href') || '').startsWith('#');
+
+      if (isZeroSize && !isSkipLink) {
+        if (el.getClientRects().length === 0) continue;
+      }
+
+      let accessibleName = '';
+      if (el.getAttribute('aria-label')) {
+        accessibleName = el.getAttribute('aria-label').trim();
+      } else if (el.getAttribute('aria-labelledby')) {
+        const ids = el.getAttribute('aria-labelledby').split(/\s+/);
+        accessibleName = ids.map(id => document.getElementById(id)?.textContent || '').join(' ').trim();
+      } else if (el.tagName === 'INPUT' && (el.type === 'submit' || el.type === 'button')) {
+        accessibleName = el.value || '';
+      } else if (el.tagName === 'INPUT' && el.placeholder) {
+        accessibleName = el.placeholder;
+      } else if (el.title) {
+        accessibleName = el.title;
+      } else {
+        accessibleName = (el.innerText || el.textContent || '').trim();
+      }
+
+      let role = el.getAttribute('role') || el.tagName.toLowerCase();
+      if (el.tagName === 'INPUT') {
+        role = `${el.type || 'text'} input`;
+      } else if (el.tagName === 'A') {
+        role = 'link';
+      }
+
+      focusable.push({
+        element: el,
+        selector: getUniqueSelector(el),
+        tagName: el.tagName.toLowerCase(),
+        role,
+        name: accessibleName.slice(0, 100) || '(No accessible name)',
+        tabIndex,
+        hasExplicitTabIndex,
+        isSkipLink,
+        rect: {
+          top: Math.round(rect.top),
+          left: Math.round(rect.left),
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
+        }
+      });
+    }
+
+    // HTML5 sequential tab order sorting
+    const positiveTabindexList = focusable
+      .filter(item => item.tabIndex > 0)
+      .sort((a, b) => {
+        if (a.tabIndex !== b.tabIndex) return a.tabIndex - b.tabIndex;
+        const pos = a.element.compareDocumentPosition(b.element);
+        return (pos & Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1;
+      });
+
+    const normalTabindexList = focusable
+      .filter(item => item.tabIndex === 0)
+      .sort((a, b) => {
+        const pos = a.element.compareDocumentPosition(b.element);
+        return (pos & Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1;
+      });
+
+    const orderedSequence = [...positiveTabindexList, ...normalTabindexList];
+    lastTabOrderElements = orderedSequence;
+
+    let positiveTabIndexCount = positiveTabindexList.length;
+    let visualJumpCount = 0;
+    let missingNameCount = 0;
+    let hasSkipLink = false;
+
+    if (orderedSequence.length > 0) {
+      const firstTwo = orderedSequence.slice(0, 2);
+      hasSkipLink = firstTwo.some(it => it.isSkipLink);
+    }
+
+    const analyzedItems = orderedSequence.map((item, idx) => {
+      const prev = idx > 0 ? orderedSequence[idx - 1] : null;
+      let hasVisualJump = false;
+      let warningText = null;
+
+      if (item.tabIndex > 0) {
+        warningText = `tabindex="${item.tabIndex}" forces element earlier in keyboard flow, disrupting natural DOM order (WCAG 2.4.3).`;
+      }
+
+      if (prev) {
+        const verticalJump = prev.rect.top - item.rect.top;
+        if (verticalJump > 160 && !item.isSkipLink) {
+          hasVisualJump = true;
+          visualJumpCount++;
+          if (!warningText) {
+            warningText = `Focus jumps upwards by ~${Math.round(verticalJump)}px, contradicting visual top-to-bottom reading order.`;
+          }
+        }
+      }
+
+      const hasMissingName = !item.name || item.name === '(No accessible name)';
+      if (hasMissingName) {
+        missingNameCount++;
+        if (!warningText) {
+          warningText = 'Interactive element has no discernible accessible name for assistive tools.';
+        }
+      }
+
+      return {
+        step: idx + 1,
+        selector: item.selector,
+        tagName: item.tagName,
+        role: item.role,
+        name: item.name,
+        tabIndex: item.tabIndex,
+        hasPositiveTabIndex: item.tabIndex > 0,
+        hasVisualJump,
+        hasMissingName,
+        warningText,
+        rect: item.rect,
+      };
+    });
+
+    let flowStatus = 'Sequential';
+    if (positiveTabIndexCount > 0) {
+      flowStatus = 'Disrupted';
+    } else if (visualJumpCount > 0) {
+      flowStatus = 'Needs Review';
+    }
+
+    return {
+      totalElements: analyzedItems.length,
+      positiveTabIndexCount,
+      visualJumpCount,
+      missingNameCount,
+      hasSkipLink,
+      flowStatus,
+      items: analyzedItems.slice(0, 150),
+    };
+  }
+
+  /**
    * Main audit execution entry point
    * @returns {Promise<Object>} Complete audit report
    */
@@ -1521,6 +1702,33 @@
       console.warn('[WCAG Auditor] Hover evaluation notice:', hoverErr);
     }
 
+    // 5. Run Tab Navigation Order Evaluation
+    let tabOrderData = null;
+    try {
+      tabOrderData = evaluateTabNavigationOrder();
+      if (tabOrderData && tabOrderData.positiveTabIndexCount > 0) {
+        violationsBySeverity.serious = (violationsBySeverity.serious || 0) + tabOrderData.positiveTabIndexCount;
+        formattedViolations.push({
+          id: 'focus-order-tabindex',
+          impact: 'serious',
+          description: 'Elements should not have positive tabindex attributes (> 0) because they disrupt natural keyboard navigation and reading flow.',
+          help: 'Avoid positive tabindex values to maintain natural keyboard navigation order',
+          helpUrl: 'https://www.w3.org/WAI/WCAG22/Understanding/focus-order.html',
+          tags: ['wcag2a', 'wcag243'],
+          wcagRule: 'WCAG 2.2 A 2.4.3 Focus Order',
+          affectedCount: tabOrderData.positiveTabIndexCount,
+          nodes: tabOrderData.items.filter(it => it.hasPositiveTabIndex).map(it => ({
+            target: it.selector,
+            html: `<${it.tagName} tabindex="${it.tabIndex}">${it.name}</${it.tagName}>`,
+            failureSummary: `Element has positive tabindex="${it.tabIndex}". Remove positive tabindex to preserve natural DOM order.`,
+          })),
+          remediationCode: `<!-- Fix: Remove positive tabindex to restore natural keyboard navigation order -->\n<element tabindex="0"> ... </element>`,
+        });
+      }
+    } catch (tabErr) {
+      console.warn('[WCAG Auditor] Tab order evaluation notice:', tabErr);
+    }
+
     // Sort violations by severity: critical first, then serious, moderate, minor
     const severityOrder = { critical: 1, serious: 2, moderate: 3, minor: 4 };
     formattedViolations.sort((a, b) => (severityOrder[a.impact] || 5) - (severityOrder[b.impact] || 5));
@@ -1542,6 +1750,7 @@
       summary,
       screenReaderScore: srScore,
       speechSequence,
+      tabOrder: tabOrderData,
       stats: {
         totalViolations: formattedViolations.reduce((acc, v) => acc + v.affectedCount, 0),
         rulesViolatedCount: formattedViolations.length,
@@ -2377,5 +2586,332 @@
     }
     document.getElementById('__auditforge_vo_sim_banner__')?.remove();
     return { active: false };
+  };
+
+  /**
+   * Toggles the interactive visual Tab-Trail overlay on the web page.
+   * Renders numbered badges (#1, #2, #3...) on each focusable element
+   * and connecting bezier paths illustrating the keyboard focus journey.
+   * @param {boolean} [forceState]
+   * @returns {{ active: boolean, totalSteps?: number }}
+   */
+  window.__auditforgeToggleTabTrail = function (forceState) {
+    const existing = document.getElementById('__auditforge_tab_trail_root__');
+    if (existing) {
+      if (forceState === true) return { active: true };
+      existing.remove();
+      if (typeof window.__auditforgeTabTrailCleanup === 'function') {
+        window.__auditforgeTabTrailCleanup();
+        window.__auditforgeTabTrailCleanup = null;
+      }
+      return { active: false };
+    }
+
+    if (forceState === false) return { active: false };
+
+    // Run tab order calculation
+    const tabData = evaluateTabNavigationOrder();
+    if (!lastTabOrderElements || lastTabOrderElements.length === 0) {
+      alert('No focusable interactive elements detected on this page.');
+      return { active: false };
+    }
+
+    const root = document.createElement('div');
+    root.id = '__auditforge_tab_trail_root__';
+    root.style.cssText = 'position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2147483645;';
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.id = '__auditforge_tab_trail_svg__';
+    const docHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight, window.innerHeight);
+    const docWidth = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth, window.innerWidth);
+    svg.style.cssText = `position: absolute; top: 0; left: 0; width: ${docWidth}px; height: ${docHeight}px; pointer-events: none; overflow: visible;`;
+    
+    svg.innerHTML = `
+      <defs>
+        <marker id="__af_arrow_normal__" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#009ED4" />
+        </marker>
+        <marker id="__af_arrow_warn__" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f59e0b" />
+        </marker>
+        <filter id="__af_glow__" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#009ED4" flood-opacity="0.6"/>
+        </filter>
+      </defs>
+    `;
+
+    const badgesContainer = document.createElement('div');
+    badgesContainer.id = '__auditforge_tab_badges__';
+    badgesContainer.style.cssText = 'position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;';
+
+    const ctrlBar = document.createElement('div');
+    ctrlBar.id = '__auditforge_tab_trail_bar__';
+    ctrlBar.style.cssText = `
+      position: fixed;
+      top: 16px;
+      right: 20px;
+      z-index: 2147483647;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 10px 16px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+      color: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      pointer-events: auto;
+      backdrop-filter: blur(8px);
+    `;
+    ctrlBar.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #009ED4; box-shadow: 0 0 8px #009ED4;"></span>
+        <strong style="color: #fff; font-size: 13px;">AuditForge Tab-Trail</strong>
+        <span style="background: rgba(255,255,255,0.1); padding: 2px 7px; border-radius: 4px; font-size: 11px;">${lastTabOrderElements.length} Focusable Steps</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <button id="__af_tab_focus_first__" type="button" style="background: #1e293b; border: 1px solid #475569; color: #38bdf8; font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 5px; cursor: pointer;">Focus #1</button>
+        <button id="__af_tab_exit_btn__" type="button" style="background: #ef4444; border: none; color: #fff; font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 5px; cursor: pointer;">✕ Exit (Esc)</button>
+      </div>
+    `;
+
+    root.appendChild(svg);
+    root.appendChild(badgesContainer);
+    root.appendChild(ctrlBar);
+    document.body.appendChild(root);
+
+    function renderTrailGeometry() {
+      const oldPaths = svg.querySelectorAll('path.__af_trail_path__');
+      oldPaths.forEach(p => p.remove());
+      badgesContainer.innerHTML = '';
+
+      const scrollX = window.scrollX;
+      const scrollY = window.scrollY;
+      const coords = [];
+
+      lastTabOrderElements.forEach((item, idx) => {
+        const el = item.element;
+        if (!el || !el.isConnected) return;
+        const r = el.getBoundingClientRect();
+        const pageX = r.left + scrollX;
+        const pageY = r.top + scrollY;
+        const centerX = pageX + r.width / 2;
+        const centerY = pageY + r.height / 2;
+
+        coords.push({ x: centerX, y: centerY, top: pageY, left: pageX, item, el, step: idx + 1 });
+
+        const badge = document.createElement('div');
+        const isWarn = item.tabIndex > 0;
+        const bg = isWarn ? '#f59e0b' : '#009ED4';
+        badge.style.cssText = `
+          position: absolute;
+          top: ${pageY - 10}px;
+          left: ${pageX - 10}px;
+          background: ${bg};
+          color: #ffffff;
+          font-weight: 800;
+          font-size: 11px;
+          line-height: 20px;
+          height: 20px;
+          min-width: 20px;
+          padding: 0 5px;
+          text-align: center;
+          border-radius: 10px;
+          box-shadow: 0 0 10px ${isWarn ? 'rgba(245,158,11,0.8)' : 'rgba(0,158,212,0.8)'};
+          pointer-events: auto;
+          cursor: pointer;
+          z-index: 2147483646;
+          user-select: none;
+        `;
+        badge.title = `Step #${idx + 1}: <${item.tagName}> "${item.name}"\nRole: ${item.role}${item.tabIndex > 0 ? '\n⚠️ Positive tabindex=' + item.tabIndex : ''}`;
+        badge.textContent = `${idx + 1}`;
+
+        badge.addEventListener('click', (e) => {
+          e.stopPropagation();
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.focus({ preventScroll: true });
+        });
+
+        badgesContainer.appendChild(badge);
+      });
+
+      for (let i = 0; i < coords.length - 1; i++) {
+        const p1 = coords[i];
+        const p2 = coords[i + 1];
+        const isWarn = p2.item.tabIndex > 0;
+        const color = isWarn ? '#f59e0b' : '#009ED4';
+        const marker = isWarn ? 'url(#__af_arrow_warn__)' : 'url(#__af_arrow_normal__)';
+
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const cx = (p1.x + p2.x) / 2 - dy * 0.12;
+        const cy = (p1.y + p2.y) / 2 + dx * 0.12;
+
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.classList.add('__af_trail_path__');
+        path.setAttribute('d', `M ${p1.x} ${p1.y} Q ${cx} ${cy} ${p2.x} ${p2.y}`);
+        path.setAttribute('stroke', color);
+        path.setAttribute('stroke-width', '2.5');
+        path.setAttribute('stroke-dasharray', isWarn ? '5,3' : '6,4');
+        path.setAttribute('fill', 'none');
+        path.setAttribute('opacity', '0.85');
+        path.setAttribute('marker-end', marker);
+        svg.appendChild(path);
+      }
+    }
+
+    renderTrailGeometry();
+
+    let resizeTimer = null;
+    const onResize = () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        const h = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight, window.innerHeight);
+        const w = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth, window.innerWidth);
+        svg.style.width = `${w}px`;
+        svg.style.height = `${h}px`;
+        renderTrailGeometry();
+      }, 150);
+    };
+
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        window.__auditforgeToggleTabTrail(false);
+      }
+    };
+
+    window.addEventListener('resize', onResize, { passive: true });
+    window.addEventListener('keydown', onKeyDown, true);
+
+    document.getElementById('__af_tab_focus_first__')?.addEventListener('click', () => {
+      if (lastTabOrderElements[0]?.element) {
+        lastTabOrderElements[0].element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        lastTabOrderElements[0].element.focus({ preventScroll: true });
+      }
+    });
+
+    document.getElementById('__af_tab_exit_btn__')?.addEventListener('click', () => {
+      window.__auditforgeToggleTabTrail(false);
+    });
+
+    window.__auditforgeTabTrailCleanup = () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('keydown', onKeyDown, true);
+    };
+
+    return { active: true, totalSteps: lastTabOrderElements.length };
+  };
+
+  /**
+   * Applies mathematically accurate Color Vision Deficiency (CVD) SVG filter matrix to the page.
+   * Supports Protanopia, Deuteranopia, Tritanopia, and Achromatopsia.
+   * @param {'none' | 'protanopia' | 'deuteranopia' | 'tritanopia' | 'achromatopsia'} filterType
+   * @returns {{ active: boolean, filter: string }}
+   */
+  window.__auditforgeSetColorFilter = function (filterType) {
+    const FILTER_ID_MAP = {
+      protanopia: '__af_cvd_protanopia__',
+      deuteranopia: '__af_cvd_deuteranopia__',
+      tritanopia: '__af_cvd_tritanopia__',
+      achromatopsia: '__af_cvd_achromatopsia__',
+    };
+
+    const LABELS = {
+      protanopia: 'Protanopia (Red-Blind)',
+      deuteranopia: 'Deuteranopia (Green-Blind)',
+      tritanopia: 'Tritanopia (Blue-Blind)',
+      achromatopsia: 'Achromatopsia (Monochrome)',
+    };
+
+    document.getElementById('__af_cvd_indicator__')?.remove();
+
+    if (!filterType || filterType === 'none' || !FILTER_ID_MAP[filterType]) {
+      document.documentElement.style.removeProperty('filter');
+      return { active: false, filter: 'none' };
+    }
+
+    let defsSvg = document.getElementById('__auditforge_cvd_defs__');
+    if (!defsSvg) {
+      defsSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      defsSvg.id = '__auditforge_cvd_defs__';
+      defsSvg.setAttribute('style', 'position: absolute; height: 0; width: 0; overflow: hidden;');
+      defsSvg.setAttribute('aria-hidden', 'true');
+      defsSvg.innerHTML = `
+        <defs>
+          <filter id="__af_cvd_protanopia__">
+            <feColorMatrix type="matrix" values="
+              0.567, 0.433, 0.000, 0, 0
+              0.558, 0.442, 0.000, 0, 0
+              0.000, 0.242, 0.758, 0, 0
+              0.000, 0.000, 0.000, 1, 0" />
+          </filter>
+          <filter id="__af_cvd_deuteranopia__">
+            <feColorMatrix type="matrix" values="
+              0.625, 0.375, 0.000, 0, 0
+              0.700, 0.300, 0.000, 0, 0
+              0.000, 0.300, 0.700, 0, 0
+              0.000, 0.000, 0.000, 1, 0" />
+          </filter>
+          <filter id="__af_cvd_tritanopia__">
+            <feColorMatrix type="matrix" values="
+              0.950, 0.050, 0.000, 0, 0
+              0.000, 0.433, 0.567, 0, 0
+              0.000, 0.475, 0.525, 0, 0
+              0.000, 0.000, 0.000, 1, 0" />
+          </filter>
+          <filter id="__af_cvd_achromatopsia__">
+            <feColorMatrix type="matrix" values="
+              0.299, 0.587, 0.114, 0, 0
+              0.299, 0.587, 0.114, 0, 0
+              0.299, 0.587, 0.114, 0, 0
+              0.000, 0.000, 0.000, 1, 0" />
+          </filter>
+        </defs>
+      `;
+      document.documentElement.appendChild(defsSvg);
+    }
+
+    const filterId = FILTER_ID_MAP[filterType];
+    document.documentElement.style.setProperty('filter', `url(#${filterId})`, 'important');
+
+    const pill = document.createElement('div');
+    pill.id = '__af_cvd_indicator__';
+    pill.style.cssText = `
+      position: fixed;
+      bottom: 16px;
+      left: 16px;
+      z-index: 2147483647;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 999px;
+      padding: 6px 14px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      color: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 11.5px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      user-select: none;
+      pointer-events: auto;
+    `;
+    pill.innerHTML = `
+      <span style="display: flex; align-items: center; gap: 6px;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+        <span><strong>Color Vision Lens:</strong> ${LABELS[filterType] || filterType}</span>
+      </span>
+      <button id="__af_cvd_reset_btn__" type="button" style="background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); color: #fff; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 12px; cursor: pointer;">Reset Normal</button>
+    `;
+
+    pill.querySelector('#__af_cvd_reset_btn__')?.addEventListener('click', () => {
+      window.__auditforgeSetColorFilter('none');
+    });
+
+    document.body.appendChild(pill);
+
+    return { active: true, filter: filterType };
   };
 })();

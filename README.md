@@ -44,6 +44,21 @@ A standalone, non-branded Google Chrome Extension (Manifest V3) that evaluates a
    - Includes the **"Screen Reader & VoiceOver Compatibility Assessment"** section with score, hierarchy checks, and sequential readout table.
    - Fully standalone: requires no backend server, node processes, or external network requests.
 
+7. **Logical Tab Navigation Order & Visual Tab-Trail Overlay**:
+   - **Tab Order Audit**: Inspects the exact sequential HTML5 keyboard tab order, calculates flow status (Sequential, Needs Review, Disrupted), and flags `tabindex > 0` anti-patterns.
+   - **Visual Flow Anomaly Detection**: Flags focus stops that contradict top-to-bottom reading order (e.g. unexpected upward focus jumps) and verifies "Skip to main content" links.
+   - **In-Page Tab-Trail Overlay**: Click **"🗺️ Show Tab-Trail Overlay"** to project numbered glowing badges (`#1, #2, #3...`) directly onto each interactive element on the target page, connected by curved directional SVG paths.
+   - **Interactive Tab Sequence Cards**: Browse each focusable stop in the extension panel, view element roles/labels/selectors, and click **"🎯 Locate"** to highlight that element.
+
+8. **Color Blindness (CVD) Emulation Lens**:
+   - **One-Click Live Emulation**: Switch between vision profiles directly from the extension bar:
+     - **Protanopia** (Red-blind / L-cone deficiency)
+     - **Deuteranopia** (Green-blind / M-cone deficiency, ~5% of males)
+     - **Tritanopia** (Blue/Yellow-blind / S-cone deficiency)
+     - **Achromatopsia** (Monochromacy / Complete color blindness)
+   - **Mathematically Accurate SVG Matrices**: Uses calibrated color transformation matrices applied live to the page DOM.
+   - **Persistent Floating Reset Pill**: Displays active simulation state on the webpage with a one-click **"Reset Normal"** button.
+
 ---
 
 ## Installation Instructions (Developer Mode)

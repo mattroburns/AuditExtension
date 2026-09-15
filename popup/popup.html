@@ -65,6 +65,25 @@
       </form>
     </section>
 
+    <!-- Color Vision Deficiency (CVD) Emulation Bar -->
+    <section class="cvd-section">
+      <div class="cvd-bar">
+        <div class="cvd-title-group">
+          <span class="cvd-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+          </span>
+          <span class="cvd-title">Color Blindness Lens:</span>
+        </div>
+        <div class="cvd-pills" id="cvd-pills">
+          <button type="button" class="cvd-pill active" data-cvd="none" title="Normal visual spectrum">Normal</button>
+          <button type="button" class="cvd-pill" data-cvd="protanopia" title="Protanopia: Red-blind / Red-weak simulation (~1.3% males)">Protanopia</button>
+          <button type="button" class="cvd-pill" data-cvd="deuteranopia" title="Deuteranopia: Green-blind / Green-weak simulation (~5% males, most common)">Deuteranopia</button>
+          <button type="button" class="cvd-pill" data-cvd="tritanopia" title="Tritanopia: Blue/Yellow-blind simulation (rare)">Tritanopia</button>
+          <button type="button" class="cvd-pill" data-cvd="achromatopsia" title="Achromatopsia: Monochromacy / Complete color blindness">Monochrome</button>
+        </div>
+      </div>
+    </section>
+
     <!-- Loading / Progress State -->
     <section id="scan-progress" class="scan-progress hidden">
       <div class="progress-spinner"></div>
@@ -302,6 +321,60 @@
 
           <div id="speech-timeline" class="speech-timeline">
             <!-- Dynamically populated speech steps -->
+          </div>
+        </div>
+      </section>
+
+      <!-- Tab Order & Keyboard Navigation Drawer -->
+      <section class="tab-order-section">
+        <div class="tab-order-header" id="tab-order-header-toggle">
+          <div class="tab-order-header-title">
+            <span class="tab-order-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </span>
+            <div>
+              <h3 class="tab-order-title">Tab Navigation Order & Focus Trail</h3>
+              <p class="tab-order-subtitle">Sequential keyboard tab order audit, visual reading flow & in-page trail overlay</p>
+            </div>
+          </div>
+          <div class="tab-order-badge-group">
+            <span id="tab-order-status-badge" class="tab-order-status-badge">-- Controls</span>
+            <button type="button" id="tab-order-toggle-btn" class="tab-order-toggle-btn">▼ View Sequence</button>
+          </div>
+        </div>
+
+        <div id="tab-order-panel-body" class="tab-order-panel-body hidden">
+          <div class="tab-order-summary-strip">
+            <div class="tab-order-strip-item">
+              <span class="tab-order-strip-label">Focusable Items:</span>
+              <strong id="tab-total-count" class="tab-val">0</strong>
+            </div>
+            <div class="tab-order-strip-item">
+              <span class="tab-order-strip-label">Tab Flow:</span>
+              <strong id="tab-flow-status" class="tab-status-val">Sequential</strong>
+            </div>
+            <div class="tab-order-strip-item">
+              <span class="tab-order-strip-label">Positive TabIndex:</span>
+              <strong id="tab-positive-count" class="tab-positive-val">0</strong>
+            </div>
+            <div class="tab-order-strip-item">
+              <span class="tab-order-strip-label">Skip Link:</span>
+              <strong id="tab-skip-status" class="tab-status-val">Verified</strong>
+            </div>
+          </div>
+
+          <!-- Action Bar -->
+          <div class="tab-order-actions-bar">
+            <button type="button" id="btn-toggle-tab-trail" class="btn-tab-trail">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+              <span id="tab-trail-btn-label">🗺️ Show Tab-Trail Overlay</span>
+            </button>
+            <span class="tab-trail-hint">Overlays numbered badges (#1, #2, #3...) and connecting paths directly on the active webpage.</span>
+          </div>
+
+          <!-- Tab Sequence List -->
+          <div id="tab-sequence-list" class="tab-sequence-list">
+            <!-- Dynamically populated -->
           </div>
         </div>
       </section>
