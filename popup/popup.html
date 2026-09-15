@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WCAG 2.2 Accessibility Compliance Auditor</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-shell">
+    
+    <!-- Top Header -->
+    <header class="popup-header">
+      <div class="header-title-group">
+        <div class="header-icon">
+          <svg class="header-icon-svg" width="28" height="28" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" aria-label="Accessibility Logo">
+            <circle cx="100" cy="100" r="92" fill="#009ED4"/>
+            <circle cx="100" cy="46" r="14.5" fill="#FFFFFF"/>
+            <path fill="#FFFFFF" d="M 34,74 C 28,74 24,78.5 24,84 C 24,89.5 28,94 34,94 L 76,94 C 82,94 85.5,99 85.5,106 L 83,124 L 71,164 C 69,170 74,176 80,176 C 84.5,176 88,172.5 90,167 L 99,134 C 99.5,131.5 100.5,131.5 101,134 L 110,167 C 112,172.5 115.5,176 120,176 C 126,176 131,170 129,164 L 117,124 L 114.5,106 C 114.5,99 118,94 124,94 L 166,94 C 172,94 176,89.5 176,84 C 176,78.5 172,74 166,74 Z"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="header-title">AuditForge | Accessibility Compliance</h1>
+          <p class="header-subtitle">theidol.com Quality & Inclusion &bull; WCAG 2.2 AA</p>
+        </div>
+      </div>
+      <div class="header-right-actions">
+        <button type="button" id="btn-popout" class="header-mode-btn" title="Open in persistent floating window (stays open permanently)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          <span>Pop Out</span>
+        </button>
+        <button type="button" id="btn-sidepanel" class="header-mode-btn hidden" title="Dock to Chrome Side Panel (stays open permanently)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/></svg>
+          <span>Side Panel</span>
+        </button>
+        <div class="standard-pill">
+          <span class="pulse-dot"></span>
+          <span>WCAG 2.2 AA</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Toolbar Input Section -->
+    <section class="url-input-section">
+      <form id="audit-form" class="url-form">
+        <div class="input-wrapper">
+          <span class="url-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          </span>
+          <input 
+            type="text" 
+            id="input-url" 
+            placeholder="Enter web page URL (e.g., https://example.com)" 
+            required 
+            autocomplete="off"
+            spellcheck="false"
+          >
+        </div>
+        <button type="submit" id="btn-go" class="btn btn-go">
+          <span class="btn-icon">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          </span>
+          <span>Run Audit</span>
+        </button>
+      </form>
+    </section>
+
+    <!-- Loading / Progress State -->
+    <section id="scan-progress" class="scan-progress hidden">
+      <div class="progress-spinner"></div>
+      <div class="progress-details">
+        <h3 id="progress-title">Auditing Target Page...</h3>
+        <p id="progress-sub">Evaluating DOM tree against WCAG 2.2 Level AA, :hover contrast, and ARIA rules...</p>
+      </div>
+    </section>
+
+    <!-- Error State -->
+    <section id="error-view" class="error-view hidden">
+      <div class="error-badge">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      </div>
+      <div class="error-content">
+        <h4>Scan Could Not Complete</h4>
+        <p id="error-message">Unable to execute audit on this page.</p>
+      </div>
+    </section>
+
+    <!-- Audit Results Dashboard (Hidden until scan finishes) -->
+    <main id="results-view" class="results-view hidden">
+      
+      <!-- Scorecard Banner -->
+      <section class="scorecard-banner">
+        <div class="scorecard-main">
+          <div class="score-circle-wrapper">
+            <div id="score-circle" class="score-circle">
+              <span id="score-value" class="score-val">--</span>
+              <span class="score-denom">/ 100</span>
+            </div>
+          </div>
+
+          <div class="score-meta">
+            <div class="target-row">
+              <h2 id="result-title" class="target-title">Target Page</h2>
+              <a id="result-url" class="target-link" href="#" target="_blank" rel="noopener">https://...</a>
+            </div>
+
+            <div class="badges-row">
+              <div class="pill grade-pill">
+                <span>GRADE</span>
+                <strong id="result-grade">--</strong>
+              </div>
+              <div id="result-risk-pill" class="pill risk-pill">
+                <span>RISK</span>
+                <strong id="result-risk">MODERATE</strong>
+              </div>
+              <div class="pill sr-pill">
+                <span>SCREEN READER</span>
+                <strong id="result-sr-score">--/100</strong>
+              </div>
+              <div class="pill time-pill">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <strong id="result-duration">--s</strong>
+              </div>
+            </div>
+
+            <p id="result-summary" class="summary-narrative">
+              Audit evaluation summary.
+            </p>
+          </div>
+        </div>
+
+        <!-- Export PDF CTA -->
+        <div class="export-cta-wrapper">
+          <button id="btn-export-pdf" class="btn btn-pdf">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            <span>Export PDF Report</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Key Metrics Counter Grid -->
+      <section class="metrics-grid">
+        <div class="metric-card card-critical">
+          <span class="metric-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          </span>
+          <div>
+            <span class="metric-label">Critical</span>
+            <h3 id="metric-critical" class="metric-val">0</h3>
+          </div>
+        </div>
+
+        <div class="metric-card card-serious">
+          <span class="metric-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </span>
+          <div>
+            <span class="metric-label">Serious</span>
+            <h3 id="metric-serious" class="metric-val">0</h3>
+          </div>
+        </div>
+
+        <div class="metric-card card-moderate">
+          <span class="metric-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          </span>
+          <div>
+            <span class="metric-label">Moderate</span>
+            <h3 id="metric-moderate" class="metric-val">0</h3>
+          </div>
+        </div>
+
+        <div class="metric-card card-passed">
+          <span class="metric-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+          </span>
+          <div>
+            <span class="metric-label">Passed</span>
+            <h3 id="metric-passed" class="metric-val">0</h3>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen Reader & VoiceOver Simulation Drawer -->
+      <section class="screen-reader-section">
+        <div class="sr-header" id="sr-header-toggle">
+          <div class="sr-header-title">
+            <span class="sr-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
+            </span>
+            <div>
+              <h3 class="sr-title">Screen Reader Speech & Rotor Simulation</h3>
+              <p class="sr-subtitle">VoiceOver / NVDA sequential readout simulation & auditory barrier analysis</p>
+            </div>
+          </div>
+          <div class="sr-badge-group">
+            <span id="sr-score-badge" class="sr-score-badge">--/100 VoiceOver</span>
+            <button type="button" id="sr-toggle-btn" class="sr-toggle-btn">▼ View Readout</button>
+          </div>
+        </div>
+        
+        <div id="sr-panel-body" class="sr-panel-body hidden">
+          <div class="sr-summary-strip">
+            <div class="sr-strip-item">
+              <span class="sr-strip-label">Screen Reader Barriers:</span>
+              <strong id="sr-barrier-count" class="sr-barrier-val">0</strong>
+            </div>
+            <div class="sr-strip-item">
+              <span class="sr-strip-label">Rotor Landmarks:</span>
+              <strong id="sr-landmark-status" class="sr-status-val">Verified</strong>
+            </div>
+            <div class="sr-strip-item">
+              <span class="sr-strip-label">Heading Hierarchy:</span>
+              <strong id="sr-heading-status" class="sr-status-val">Sequential</strong>
+            </div>
+          </div>
+
+          <!-- Persona Selector & Simulator Bar -->
+          <div class="sr-persona-bar">
+            <div class="sr-persona-group">
+              <span class="sr-persona-label">Persona:</span>
+              <div class="sr-persona-tabs">
+                <button type="button" class="sr-persona-btn active" data-persona="voiceover" title="Apple VoiceOver syntax: [Name], [State], [Role]">VoiceOver (macOS)</button>
+                <button type="button" class="sr-persona-btn" data-persona="nvda" title="NVDA / JAWS syntax: [Role], [Name], [State]">NVDA / JAWS</button>
+                <button type="button" class="sr-persona-btn" data-persona="narrator" title="Windows Narrator syntax">Narrator</button>
+              </div>
+            </div>
+            <button type="button" id="btn-launch-page-sim" class="btn-launch-sim" title="Launch interactive keyboard navigation & speech directly on the live webpage">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              <span>Launch Page Simulator</span>
+            </button>
+          </div>
+
+          <!-- Speech Synthesis Audio Controls Bar -->
+          <div class="sr-audio-toolbar">
+            <div class="sr-audio-actions">
+              <button type="button" id="sr-btn-play" class="sr-ctrl-btn sr-btn-play" title="Read all sequence elements aloud step-by-step">
+                <span id="sr-play-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></span> <span id="sr-play-label">Read All</span>
+              </button>
+              <button type="button" id="sr-btn-stop" class="sr-ctrl-btn sr-btn-stop" title="Stop speech playback" disabled>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+                <span>Stop</span>
+              </button>
+              <div class="sr-step-nav">
+                <button type="button" id="sr-btn-prev" class="sr-icon-btn" title="Previous speech item">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5" stroke="currentColor" stroke-width="2"/></svg>
+                </button>
+                <button type="button" id="sr-btn-next" class="sr-icon-btn" title="Next speech item">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="2"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="sr-audio-settings">
+              <div class="sr-setting-group">
+                <label for="sr-rate-select" class="sr-ctrl-label">Speed:</label>
+                <select id="sr-rate-select" class="sr-select">
+                  <option value="1">1.0x</option>
+                  <option value="1.25" selected>1.25x</option>
+                  <option value="1.5">1.5x</option>
+                  <option value="2">2.0x</option>
+                </select>
+              </div>
+
+              <div class="sr-setting-group">
+                <label for="sr-voice-select" class="sr-ctrl-label">Voice:</label>
+                <select id="sr-voice-select" class="sr-select sr-voice-select">
+                  <option value="">Default System Voice</option>
+                </select>
+              </div>
+
+              <button type="button" id="sr-btn-earcons" class="sr-pill-btn active" title="Toggle synthesized auditory sound cues (earcons)">
+                <svg class="earcon-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+                <span class="earcon-label">Audio Cues</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Live VoiceOver Caption Pill -->
+          <div id="sr-caption-container" class="sr-caption-container">
+            <div class="sr-caption-header">
+              <span class="sr-caption-badge">VOICEOVER CAPTION</span>
+              <span id="sr-caption-indicator" class="sr-caption-indicator hidden">● SPEAKING</span>
+            </div>
+            <div id="sr-caption-text" class="sr-caption-text">
+              Speech synthesizer ready. Click "Read All" or press "Speak" on any element below to test auditory readout.
+            </div>
+          </div>
+
+          <!-- Screen Reader Rotor Category Tabs -->
+          <div class="sr-rotor-nav">
+            <span class="sr-rotor-label">Rotor Filter:</span>
+            <div class="sr-rotor-tabs">
+              <button type="button" class="sr-rotor-btn active" data-rotor="all">All (<span id="rotor-count-all">0</span>)</button>
+              <button type="button" class="sr-rotor-btn" data-rotor="heading">Headings (<span id="rotor-count-heading">0</span>)</button>
+              <button type="button" class="sr-rotor-btn" data-rotor="landmark">Landmarks (<span id="rotor-count-landmark">0</span>)</button>
+              <button type="button" class="sr-rotor-btn" data-rotor="link">Links (<span id="rotor-count-link">0</span>)</button>
+              <button type="button" class="sr-rotor-btn" data-rotor="control">Controls (<span id="rotor-count-control">0</span>)</button>
+              <button type="button" class="sr-rotor-btn" data-rotor="text">Text (<span id="rotor-count-text">0</span>)</button>
+            </div>
+          </div>
+
+          <div id="speech-timeline" class="speech-timeline">
+            <!-- Dynamically populated speech steps -->
+          </div>
+        </div>
+      </section>
+
+      <!-- Issues Table & Detailed Findings -->
+      <section class="issues-section">
+        <div class="issues-header">
+          <div>
+            <h3 class="issues-title">WCAG Issues Table & Technical Fixes</h3>
+            <p class="issues-subtitle">Inspect exact CSS selectors, offending HTML, contrast calculations, and code fixes</p>
+          </div>
+
+          <!-- Severity Filter Tabs -->
+          <div class="filter-tabs">
+            <button class="filter-btn active" data-filter="all">All (<span id="tab-count-all">0</span>)</button>
+            <button class="filter-btn filter-crit" data-filter="critical">Critical (<span id="tab-count-crit">0</span>)</button>
+            <button class="filter-btn filter-ser" data-filter="serious">Serious (<span id="tab-count-ser">0</span>)</button>
+            <button class="filter-btn filter-mod" data-filter="moderate">Moderate (<span id="tab-count-mod">0</span>)</button>
+          </div>
+        </div>
+
+        <!-- Issues List Accordion -->
+        <div id="issues-list" class="issues-list">
+          <!-- Dynamically populated -->
+        </div>
+      </section>
+
+    </main>
+
+  </div>
+
+  <!-- Client-side Scripts -->
+  <script src="../lib/axe.min.js"></script>
+  <script src="../lib/jspdf.umd.min.js"></script>
+  <script src="../lib/jspdf.plugin.autotable.js"></script>
+  <script src="pdf-compiler.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
