@@ -1,6 +1,6 @@
-# WCAG 2.2 Accessibility Compliance Auditor (Chrome Extension)
+# Matt's Accessibility Tool (Chrome Extension)
 
-A standalone, non-branded Google Chrome Extension (Manifest V3) that evaluates any web page against the latest **WCAG 2.2 Level AA** standards, performs interactive **:hover state color contrast verification**, lints **ARIA accessible labels**, and generates **vector PDF compliance reports**.
+A standalone Google Chrome Extension (Manifest V3) that evaluates any web page against the latest **WCAG 2.2 Level AA** standards, performs interactive **:hover state color contrast verification**, lints **ARIA accessible labels**, analyzes **logical tab navigation order** with an interactive **visual Tab-Trail overlay**, emulates **Color Blindness** (Protanopia, Deuteranopia, Tritanopia, Achromatopsia), and generates **vector PDF compliance reports**.
 
 ---
 
@@ -73,7 +73,7 @@ To install and use this extension in Google Chrome:
    ```
    c:\Users\mattr\Documents\AuditExtension
    ```
-6. The extension **"WCAG 2.2 Accessibility Compliance Auditor"** will now appear in your extensions list.
+6. The extension **"Matt's Accessibility Tool"** will now appear in your extensions list.
 7. Click the **Extensions puzzle piece icon (🧩)** in Chrome's top toolbar, find the extension, and click the **Pin (📌)** icon to keep it visible on your toolbar.
 
 ---

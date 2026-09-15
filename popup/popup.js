@@ -49,7 +49,7 @@ function setupModeControls() {
   const btnSidepanel = document.getElementById('btn-sidepanel');
 
   if (isWindowMode) {
-    document.title = 'AuditForge - WCAG 2.2 Auditor (Floating)';
+    document.title = "Matt's Accessibility Tool (Floating)";
     btnPopout?.classList.add('hidden');
     btnSidepanel?.classList.remove('hidden');
   } else {
@@ -1732,7 +1732,7 @@ async function highlightElementOnPage(selector, meta = {}, triggerButton = null)
     }
 
     if (!targetTab || !targetTab.id) {
-      console.warn('AuditForge: No active tab found to highlight element.');
+      console.warn("Matt's Accessibility Tool: No active tab found to highlight element.");
       if (triggerButton) {
         triggerButton.innerHTML = '<span>⚠️ No Tab</span>';
         setTimeout(() => { triggerButton.innerHTML = originalHtml; }, 2000);
@@ -1761,7 +1761,7 @@ async function highlightElementOnPage(selector, meta = {}, triggerButton = null)
       args: [selector, meta],
     });
   } catch (err) {
-    console.error('AuditForge: Failed to trigger in-page highlight:', err);
+    console.error("Matt's Accessibility Tool: Failed to trigger in-page highlight:", err);
     if (triggerButton) {
       triggerButton.classList.remove('btn-located');
       triggerButton.innerHTML = '<span>⚠️ Notice</span>';

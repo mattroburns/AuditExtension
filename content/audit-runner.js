@@ -2825,7 +2825,7 @@
     ctrlBar.innerHTML = `
       <div style="display: flex; align-items: center; gap: 8px;">
         <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #009ED4; box-shadow: 0 0 8px #009ED4;"></span>
-        <strong style="color: #fff; font-size: 13px;">AuditForge Tab-Trail</strong>
+        <strong style="color: #fff; font-size: 13px;">Matt's Accessibility Tool — Tab Trail</strong>
         <span style="background: rgba(255,255,255,0.1); padding: 2px 7px; border-radius: 4px; font-size: 11px;">${lastTabOrderElements.length} Focusable Steps</span>
       </div>
       <div style="display: flex; align-items: center; gap: 8px;">
