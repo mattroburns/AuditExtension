@@ -49,7 +49,7 @@ function setupModeControls() {
   const btnSidepanel = document.getElementById('btn-sidepanel');
 
   if (isWindowMode) {
-    document.title = "Matt's Accessibility Tool (Floating)";
+    document.title = "Matt's QA Extension (Floating)";
     btnPopout?.classList.add('hidden');
     btnSidepanel?.classList.remove('hidden');
   } else {
@@ -1732,7 +1732,7 @@ async function highlightElementOnPage(selector, meta = {}, triggerButton = null)
     }
 
     if (!targetTab || !targetTab.id) {
-      console.warn("Matt's Accessibility Tool: No active tab found to highlight element.");
+      console.warn("Matt's QA Extension: No active tab found to highlight element.");
       if (triggerButton) {
         triggerButton.innerHTML = '<span>⚠️ No Tab</span>';
         setTimeout(() => { triggerButton.innerHTML = originalHtml; }, 2000);
@@ -1761,7 +1761,7 @@ async function highlightElementOnPage(selector, meta = {}, triggerButton = null)
       args: [selector, meta],
     });
   } catch (err) {
-    console.error("Matt's Accessibility Tool: Failed to trigger in-page highlight:", err);
+    console.error("Matt's QA Extension: Failed to trigger in-page highlight:", err);
     if (triggerButton) {
       triggerButton.classList.remove('btn-located');
       triggerButton.innerHTML = '<span>⚠️ Notice</span>';
@@ -1944,29 +1944,29 @@ function runInPageHighlight(targetSelector, meta = {}) {
       .__af_spotlight .af_br { bottom: -2px; right: -2px; border-width: 0 3px 3px 0; border-bottom-right-radius: 4px; }
       .__af_toolbar {
         position: fixed; max-width: 480px; min-width: 320px;
-        background: rgba(15, 23, 42, 0.96); backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.18);
+        background: #040809; backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px); border: 1px solid #1b6f7e;
         border-top: 3.5px solid var(--af-border); border-radius: 10px;
-        box-shadow: 0 20px 45px rgba(0, 0, 0, 0.85), 0 0 25px var(--af-glow);
+        box-shadow: 0 20px 45px rgba(0, 0, 0, 0.95), 0 0 25px var(--af-glow);
         padding: 14px 16px; pointer-events: auto; z-index: 2147483645;
         animation: __af_slide_up 0.25s cubic-bezier(0.16, 1, 0.3, 1);
       }
       .__af_toolbar_header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
       .__af_badge {
-        background: var(--af-border); color: #ffffff; padding: 2px 8px; border-radius: 4px;
+        background: var(--af-border); color: #000000; padding: 2px 8px; border-radius: 4px;
         font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
       }
-      .__af_rule_title { font-size: 12px; font-weight: 700; color: #f8fafc; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .__af_rule_title { font-size: 12px; font-weight: 700; color: #e2ebed; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .__af_btn_close {
-        background: rgba(255, 255, 255, 0.1); border: none; color: #94a3b8;
+        background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(27, 111, 126, 0.3); color: #868180;
         width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
         cursor: pointer; font-size: 12px; line-height: 1; transition: all 0.15s ease;
       }
-      .__af_btn_close:hover { background: rgba(239, 68, 68, 0.4); color: #ffffff; }
-      .__af_desc { font-size: 11px; line-height: 1.45; color: #cbd5e1; margin-bottom: 8px; }
+      .__af_btn_close:hover { background: rgba(239, 68, 68, 0.3); border-color: #ef4444; color: #ffffff; }
+      .__af_desc { font-size: 11px; line-height: 1.45; color: #868180; margin-bottom: 8px; }
       .__af_meta_row {
-        font-size: 10px; background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 5px; padding: 5px 8px; margin-bottom: 6px; word-break: break-all; font-family: monospace; color: #38bdf8;
+        font-size: 10px; background: #000000; border: 1px solid rgba(27, 111, 126, 0.35);
+        border-radius: 5px; padding: 5px 8px; margin-bottom: 6px; word-break: break-all; font-family: monospace; color: #0D9FBA;
       }
       .__af_diag_box {
         background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.3);
@@ -1974,13 +1974,13 @@ function runInPageHighlight(targetSelector, meta = {}) {
       }
       .__af_toolbar_actions {
         display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 10px;
-        padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.08);
+        padding-top: 8px; border-top: 1px solid rgba(27, 111, 126, 0.3);
       }
       .__af_btn_action {
-        background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15);
-        color: #e2e8f0; padding: 4px 10px; border-radius: 5px; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.15s ease;
+        background: #080f12; border: 1px solid rgba(27, 111, 126, 0.35);
+        color: #868180; padding: 4px 10px; border-radius: 5px; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.15s ease;
       }
-      .__af_btn_action:hover { background: rgba(56, 189, 248, 0.2); border-color: #38bdf8; color: #ffffff; }
+      .__af_btn_action:hover { background: rgba(27, 111, 126, 0.3); border-color: #0D9FBA; color: #0D9FBA; }
     `;
     document.head.appendChild(styles);
   }

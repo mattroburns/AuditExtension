@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
-  <circle cx="100" cy="100" r="92" fill="#009ED4"/>
-  <circle cx="100" cy="46" r="14.5" fill="#FFFFFF"/>
-  <path fill="#FFFFFF" d="
+  <circle cx="100" cy="100" r="92" fill="#0D9FBA"/>
+  <circle cx="100" cy="46" r="14.5" fill="#000000"/>
+  <path fill="#000000" d="
     M 34,74
     C 28,74 24,78.5 24,84
     C 24,89.5 28,94 34,94

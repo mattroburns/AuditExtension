@@ -2139,13 +2139,13 @@
           position: fixed;
           max-width: 480px;
           min-width: 320px;
-          background: rgba(15, 23, 42, 0.96);
+          background: #040809;
           backdrop-filter: blur(16px);
           -webkit-backdrop-filter: blur(16px);
-          border: 1px solid rgba(255, 255, 255, 0.18);
+          border: 1px solid #1b6f7e;
           border-top: 3.5px solid var(--af-border);
           border-radius: 10px;
-          box-shadow: 0 20px 45px rgba(0, 0, 0, 0.85), 0 0 25px var(--af-glow);
+          box-shadow: 0 20px 45px rgba(0, 0, 0, 0.95), 0 0 25px var(--af-glow);
           padding: 14px 16px;
           pointer-events: auto;
           z-index: 2147483645;
@@ -2160,7 +2160,7 @@
         }
         .__af_badge {
           background: var(--af-border);
-          color: #ffffff;
+          color: #000000;
           padding: 2px 8px;
           border-radius: 4px;
           font-size: 10px;
@@ -2171,16 +2171,16 @@
         .__af_rule_title {
           font-size: 12px;
           font-weight: 700;
-          color: #f8fafc;
+          color: #e2ebed;
           flex: 1;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
         }
         .__af_btn_close {
-          background: rgba(255, 255, 255, 0.1);
-          border: none;
-          color: #94a3b8;
+          background: rgba(255, 255, 255, 0.08);
+          border: 1px solid rgba(27, 111, 126, 0.3);
+          color: #868180;
           width: 22px;
           height: 22px;
           border-radius: 50%;
@@ -2193,25 +2193,26 @@
           transition: all 0.15s ease;
         }
         .__af_btn_close:hover {
-          background: rgba(239, 68, 68, 0.4);
+          background: rgba(239, 68, 68, 0.3);
+          border-color: #ef4444;
           color: #ffffff;
         }
         .__af_desc {
           font-size: 11px;
           line-height: 1.45;
-          color: #cbd5e1;
+          color: #868180;
           margin-bottom: 8px;
         }
         .__af_meta_row {
           font-size: 10px;
-          background: rgba(0, 0, 0, 0.4);
-          border: 1px solid rgba(255, 255, 255, 0.08);
+          background: #000000;
+          border: 1px solid rgba(27, 111, 126, 0.35);
           border-radius: 5px;
           padding: 5px 8px;
           margin-bottom: 6px;
           word-break: break-all;
           font-family: monospace;
-          color: #38bdf8;
+          color: #0D9FBA;
         }
         .__af_diag_box {
           background: rgba(245, 158, 11, 0.12);
@@ -2229,12 +2230,12 @@
           gap: 8px;
           margin-top: 10px;
           padding-top: 8px;
-          border-top: 1px solid rgba(255, 255, 255, 0.08);
+          border-top: 1px solid rgba(27, 111, 126, 0.3);
         }
         .__af_btn_action {
-          background: rgba(255, 255, 255, 0.08);
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          color: #e2e8f0;
+          background: #080f12;
+          border: 1px solid rgba(27, 111, 126, 0.35);
+          color: #868180;
           padding: 4px 10px;
           border-radius: 5px;
           font-size: 11px;
@@ -2243,9 +2244,9 @@
           transition: all 0.15s ease;
         }
         .__af_btn_action:hover {
-          background: rgba(56, 189, 248, 0.2);
-          border-color: #38bdf8;
-          color: #ffffff;
+          background: rgba(27, 111, 126, 0.3);
+          border-color: #0D9FBA;
+          color: #0D9FBA;
         }
       `;
       document.head.appendChild(styles);
@@ -2480,18 +2481,18 @@
       left: 50%;
       transform: translateX(-50%);
       z-index: 2147483647;
-      background: rgba(10, 15, 29, 0.95);
+      background: rgba(0, 0, 0, 0.95);
       backdrop-filter: blur(16px);
       -webkit-backdrop-filter: blur(16px);
-      border: 1.5px solid #a855f7;
+      border: 1.5px solid #1b6f7e;
       border-radius: 30px;
-      box-shadow: 0 10px 35px rgba(0, 0, 0, 0.75), 0 0 20px rgba(168, 85, 247, 0.35);
+      box-shadow: 0 10px 35px rgba(0, 0, 0, 0.9), 0 0 20px rgba(13, 159, 186, 0.3);
       padding: 8px 18px;
       display: flex;
       align-items: center;
       gap: 10px;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      color: #ffffff;
+      color: #e2ebed;
       font-size: 12px;
       user-select: none;
       pointer-events: auto;
@@ -2504,15 +2505,15 @@
     banner.innerHTML = `
       <style>
         @keyframes __af_sim_pop { from { opacity: 0; transform: translate(-50%, 15px) scale(0.95); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
-        .__af_vo_badge { background: #a855f7; color: #fff; font-weight: 800; font-size: 10px; padding: 2px 8px; border-radius: 12px; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
-        .__af_vo_step_badge { background: rgba(255, 255, 255, 0.12); color: #c084fc; font-weight: 700; font-size: 10px; padding: 2px 6px; border-radius: 8px; white-space: nowrap; }
-        .__af_vo_role_tag { background: rgba(56, 189, 248, 0.2); color: #38bdf8; font-weight: 700; font-size: 10px; padding: 2px 7px; border-radius: 8px; text-transform: uppercase; white-space: nowrap; }
-        .__af_vo_caption { color: #f1f5f9; font-weight: 500; font-style: italic; max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .__af_vo_nav_btn { background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.2); color: #e2e8f0; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 12px; cursor: pointer; transition: all 0.15s; }
-        .__af_vo_nav_btn:hover { background: rgba(168, 85, 247, 0.4); border-color: #a855f7; color: #fff; }
-        .__af_vo_btn_exit { background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.2); color: #e2e8f0; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 14px; cursor: pointer; transition: all 0.15s; }
-        .__af_vo_btn_exit:hover { background: rgba(239, 68, 68, 0.4); border-color: #ef4444; color: #fff; }
-        .__af_vo_hint { color: #94a3b8; font-size: 10.5px; margin-left: 2px; white-space: nowrap; }
+        .__af_vo_badge { background: #0D9FBA; color: #000000; font-weight: 800; font-size: 10px; padding: 2px 8px; border-radius: 12px; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
+        .__af_vo_step_badge { background: rgba(27, 111, 126, 0.28); color: #0D9FBA; border: 1px solid rgba(13, 159, 186, 0.35); font-weight: 700; font-size: 10px; padding: 2px 6px; border-radius: 8px; white-space: nowrap; }
+        .__af_vo_role_tag { background: rgba(18, 119, 136, 0.25); color: #0D9FBA; border: 1px solid rgba(27, 111, 126, 0.35); font-weight: 700; font-size: 10px; padding: 2px 7px; border-radius: 8px; text-transform: uppercase; white-space: nowrap; }
+        .__af_vo_caption { color: #e2ebed; font-weight: 500; font-style: italic; max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .__af_vo_nav_btn { background: #080f12; border: 1px solid rgba(27, 111, 126, 0.35); color: #868180; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 12px; cursor: pointer; transition: all 0.15s; }
+        .__af_vo_nav_btn:hover { background: rgba(27, 111, 126, 0.4); border-color: #0D9FBA; color: #0D9FBA; }
+        .__af_vo_btn_exit { background: #080f12; border: 1px solid rgba(27, 111, 126, 0.35); color: #868180; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 14px; cursor: pointer; transition: all 0.15s; }
+        .__af_vo_btn_exit:hover { background: rgba(239, 68, 68, 0.3); border-color: #ef4444; color: #fff; }
+        .__af_vo_hint { color: #868180; font-size: 10.5px; margin-left: 2px; white-space: nowrap; }
       </style>
       <span class="__af_vo_badge">🎙️ ${personaLabel} Mode</span>
       <span id="__af_vo_step_count__" class="__af_vo_step_badge">[0/${narrative.length}]</span>
@@ -2786,13 +2787,13 @@
     svg.innerHTML = `
       <defs>
         <marker id="__af_arrow_normal__" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#009ED4" />
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#0D9FBA" />
         </marker>
         <marker id="__af_arrow_warn__" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto">
           <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f59e0b" />
         </marker>
         <filter id="__af_glow__" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#009ED4" flood-opacity="0.6"/>
+          <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#0D9FBA" flood-opacity="0.6"/>
         </filter>
       </defs>
     `;
@@ -2808,12 +2809,12 @@
       top: 16px;
       right: 20px;
       z-index: 2147483647;
-      background: #0f172a;
-      border: 1px solid #334155;
+      background: #000000;
+      border: 1px solid #1b6f7e;
       border-radius: 8px;
       padding: 10px 16px;
-      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
-      color: #f8fafc;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.9), 0 0 15px rgba(13, 159, 186, 0.25);
+      color: #e2ebed;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       font-size: 12px;
       display: flex;
@@ -2824,12 +2825,12 @@
     `;
     ctrlBar.innerHTML = `
       <div style="display: flex; align-items: center; gap: 8px;">
-        <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #009ED4; box-shadow: 0 0 8px #009ED4;"></span>
-        <strong style="color: #fff; font-size: 13px;">Matt's Accessibility Tool — Tab Trail</strong>
-        <span style="background: rgba(255,255,255,0.1); padding: 2px 7px; border-radius: 4px; font-size: 11px;">${lastTabOrderElements.length} Focusable Steps</span>
+        <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #0D9FBA; box-shadow: 0 0 8px #0D9FBA;"></span>
+        <strong style="color: #e2ebed; font-size: 13px;">Matt's QA Extension — Tab Trail</strong>
+        <span style="background: rgba(27, 111, 126, 0.28); color: #0D9FBA; border: 1px solid rgba(13, 159, 186, 0.35); padding: 2px 7px; border-radius: 4px; font-size: 11px;">${lastTabOrderElements.length} Focusable Steps</span>
       </div>
       <div style="display: flex; align-items: center; gap: 8px;">
-        <button id="__af_tab_focus_first__" type="button" style="background: #1e293b; border: 1px solid #475569; color: #38bdf8; font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 5px; cursor: pointer;">Focus #1</button>
+        <button id="__af_tab_focus_first__" type="button" style="background: #080f12; border: 1px solid rgba(27, 111, 126, 0.35); color: #0D9FBA; font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 5px; cursor: pointer;">Focus #1</button>
         <button id="__af_tab_exit_btn__" type="button" style="background: #ef4444; border: none; color: #fff; font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 5px; cursor: pointer;">✕ Exit (Esc)</button>
       </div>
     `;
@@ -2868,17 +2869,18 @@
         const badge = document.createElement('div');
         const isWarn = item.tabIndex > 0;
         const isRadioGroup = !!item.isRadioGroupLeader;
-        const bg = isWarn ? '#f59e0b' : (isRadioGroup ? '#8b5cf6' : '#009ED4');
+        const bg = isWarn ? '#f59e0b' : (isRadioGroup ? 'linear-gradient(135deg, #1b6f7e, #127788)' : '#0D9FBA');
+        const textColor = isWarn ? '#000000' : (isRadioGroup ? '#e2ebed' : '#000000');
         const glow = isWarn
           ? 'rgba(245,158,11,0.8)'
-          : (isRadioGroup ? 'rgba(139,92,246,0.8)' : 'rgba(0,158,212,0.8)');
+          : (isRadioGroup ? 'rgba(13,159,186,0.8)' : 'rgba(13,159,186,0.8)');
 
         badge.style.cssText = `
           position: absolute;
           top: ${pageY - 10}px;
           left: ${pageX - 10}px;
           background: ${bg};
-          color: #ffffff;
+          color: ${textColor};
           font-weight: 800;
           font-size: 11px;
           line-height: 20px;
@@ -2922,7 +2924,7 @@
         const p2 = coords[i + 1];
         const isWarn = p2.item.tabIndex > 0;
         const isRadioGroup = !!p2.item.isRadioGroupLeader;
-        const color = isWarn ? '#f59e0b' : (isRadioGroup ? '#a78bfa' : '#009ED4');
+        const color = isWarn ? '#f59e0b' : (isRadioGroup ? '#0D9FBA' : '#0D9FBA');
         const marker = isWarn ? 'url(#__af_arrow_warn__)' : 'url(#__af_arrow_normal__)';
 
         const dx = p2.x - p1.x;
@@ -3145,12 +3147,12 @@
       bottom: 16px;
       left: 16px;
       z-index: 2147483647;
-      background: #0f172a;
-      border: 1px solid ${isLowVision ? '#a855f7' : '#334155'};
+      background: #000000;
+      border: 1px solid ${isLowVision ? '#1b6f7e' : '#127788'};
       border-radius: 999px;
       padding: 6px 14px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.6), 0 0 15px ${isLowVision ? 'rgba(168,85,247,0.3)' : 'rgba(56,189,248,0.2)'};
-      color: #f8fafc;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.85), 0 0 15px rgba(13,159,186,0.3);
+      color: #e2ebed;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       font-size: 11.5px;
       font-weight: 500;
@@ -3162,10 +3164,10 @@
     `;
     pill.innerHTML = `
       <span style="display: flex; align-items: center; gap: 6px;">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="${isLowVision ? '#c084fc' : '#38bdf8'}" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
-        <span><strong>${isLowVision ? 'Low Vision Lens' : 'Color Vision Lens'}:</strong> ${LABELS[filterType] || filterType}</span>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#0D9FBA" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+        <span><strong style="color: #0D9FBA;">${isLowVision ? 'Low Vision Lens' : 'Color Vision Lens'}:</strong> ${LABELS[filterType] || filterType}</span>
       </span>
-      <button id="__af_cvd_reset_btn__" type="button" style="background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); color: #fff; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 12px; cursor: pointer;">Reset Normal</button>
+      <button id="__af_cvd_reset_btn__" type="button" style="background: #080f12; border: 1px solid rgba(27, 111, 126, 0.4); color: #0D9FBA; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 12px; cursor: pointer;">Reset Normal</button>
     `;
 
     pill.querySelector('#__af_cvd_reset_btn__')?.addEventListener('click', () => {

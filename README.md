@@ -1,6 +1,6 @@
-# Matt's Accessibility Tool (Chrome Extension)
+# Matt's QA Extension (Chrome Extension)
 
-A standalone Google Chrome Extension (Manifest V3) that evaluates any web page against the latest **WCAG 2.2 Level AA** standards, performs interactive **:hover state color contrast verification**, lints **ARIA accessible labels**, analyzes **logical tab navigation order** with an interactive **visual Tab-Trail overlay**, emulates **Color Blindness** (Protanopia, Deuteranopia, Tritanopia, Achromatopsia), and generates **vector PDF compliance reports**.
+A standalone Google Chrome Extension (Manifest V3) styled in an ultra-comfortable **AMOLED Dark Mode** that evaluates any web page against the latest **WCAG 2.2 Level AA** standards, performs interactive **:hover state color contrast verification**, lints **ARIA accessible labels**, analyzes **logical tab navigation order** with an interactive **visual Tab-Trail overlay**, emulates **Color Blindness & Low Vision** (Protanopia, Deuteranopia, Tritanopia, Achromatopsia, Cataracts, Glaucoma, Macular Degeneration, Photophobia), provides a **live Screen Reader & VoiceOver speech synthesizer**, and generates **vector PDF compliance reports**.
 
 ---
 
@@ -78,14 +78,14 @@ A standalone Google Chrome Extension (Manifest V3) that evaluates any web page a
 4. Toggle on **"Developer mode"** (toggle switch in the top-right corner).
 5. Click the **"Load unpacked"** button in the top-left corner.
 6. Select the downloaded or cloned **`AuditExtension`** folder (the folder containing `manifest.json`).
-7. **Matt's Accessibility Tool** is now installed! Click the **Extensions puzzle piece icon (🧩)** in your browser toolbar, find the extension, and click the **Pin (📌)** icon to keep it visible on your toolbar.
+7. **Matt's QA Extension** is now installed! Click the **Extensions puzzle piece icon (🧩)** in your browser toolbar, find the extension, and click the **Pin (📌)** icon to keep it visible on your toolbar.
 
 ---
 
 ## How to Run an Audit
 
 1. Navigate to any website you want to test (e.g. `https://example.com` or `https://news.ycombinator.com`).
-2. Click the **Matt's Accessibility Tool** icon in the browser toolbar.
+2. Click the **Matt's QA Extension** icon in the browser toolbar.
 3. The current page's URL will automatically appear in the input field.
 4. Click **"⚡ Run Audit"** (or press Enter):
    - The extension will inject the WCAG 2.2 engine into the page.
