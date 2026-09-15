@@ -21,17 +21,27 @@ A standalone Google Chrome Extension (Manifest V3) styled in an ultra-comfortabl
    - Simulates interactive **:hover states** on buttons and links to catch contrast drops when background changes.
    - Lints ARIA attributes for **WCAG 2.5.3 (Label in Name)**, generic labels, and icon contradictions.
 
-4. **Screen Reader & VoiceOver Compatibility Assessment & Live Speech Engine**:
-   - **Audible Speech Synthesis Engine**: Actually speaks what screen readers announce aloud using the native Web Speech API—no external VoiceOver or NVDA software required!
-   - **Playback Controls Bar**: "▶ Read All" sequential walkthrough with Play, Pause, Resume, Stop, Next, Previous, and Speed controls (1.0x, 1.25x, 1.5x, 2.0x).
-   - **Screen Reader Persona Switcher**: Toggle between **Apple VoiceOver (macOS)** format (*[Name], [State], [Role], [Hint]*), **NVDA / JAWS (Windows)** format (*[Role], [Name], [State]*), and **Windows Narrator**.
-   - **Screen Reader Rotor Modes**: Filter and jump through the page using VoiceOver Rotor / NVDA Elements List modes: Sequential Flow, Headings Rotor (H-Key), Landmarks Rotor (D-Key), Links Rotor (U-Key), and Controls Rotor.
-   - **Interactive On-Page Simulator**: Click "🚀 On-Page Simulator" to navigate the live webpage with `Tab` and `Shift+Tab`; elements receive glowing focus rings while announcements are spoken aloud with an on-screen VoiceOver caption banner.
-   - **Synthesized Earcons (Sound Cues)**: Web Audio API harmonic cues for links, landmarks, buttons, and friction barriers.
-   - **Dedicated Screen Reader Score (0–100)**: Quantifies auditory ease-of-access for users navigating via assistive speech technologies.
-   - **Rotor & Landmark Navigation Checks**: Audits sequential heading hierarchy (detects missing `<h1>`, skipped heading levels `h1`➔`h4`, and empty headings) and ARIA landmark regions (flags missing `<main>` and unlabelled duplicate `<nav>`).
-   - **Silent Focus Trap Detection**: Flags focusable interactive controls buried inside `aria-hidden="true"` containers where screen readers remain silent while keyboard focus is active.
-   - **Auditory Friction Detection**: Flags raw file names in alt text (`.png`, `.jpg`), unlabelled images, repetitive "image of" prefixes, and ambiguous links (`"click here"`, `"learn more"`).
+4. **Multi-Platform Screen Reader Emulation Suite (iOS VoiceOver, Android TalkBack, NVDA, Windows Narrator)**:
+   - **Zero Physical Devices Required**: Test and experience the exact auditory announcements, earcon sound profiles, reading order formulas, and gesture/keyboard navigation of all 4 major assistive technologies directly in Chrome!
+   - **1. Apple iOS VoiceOver**:
+     - Announcement Syntax: `[Name], [State], [Role], [Interaction Hint]` (e.g. `"Submit, button, double-tap to activate"`, `"Features, heading level 2"`).
+     - Touch Navigation: Swipe Left (`⬅`), Swipe Right (`➔`), Double-Tap (`👆`), and virtual **Rotor** (`🔄` / `R` key) to cycle categories and jump between Headings, Links, Controls, and Landmarks.
+     - Acoustic Profile: Harmonic crystalline dual-sine bell chime (E5 & C6) and iconic black/purple VoiceOver cursor.
+   - **2. Android TalkBack**:
+     - Announcement Syntax: `[Name], [Role], [State], [Hint]` (e.g. `"Submit, Button, double-tap to activate"`, `"Features, Heading 2"`, `"Remember me, Check box, checked, double-tap to toggle"`).
+     - Touch Navigation: Swipe Left (`⬅`), Swipe Right (`➔`), Double-Tap (`👆`), and **Reading Granularity** (`🔠` / `G` key) selector.
+     - Acoustic Profile: Resonant fluid bubble bloop (frequency drop 460Hz ➔ 280Hz) and TalkBack high-visibility cyan rectangular focus box.
+   - **3. NVDA (NonVisual Desktop Access - Windows)**:
+     - Announcement Syntax: `[Role], [Name], [State]` with role announced first! (e.g. `"Heading level 2, Features"`, `"Button, Submit"`, `"Link, Terms"`).
+     - Desktop Navigation: Virtual Buffer browse mode (`↓ / ↑`), Quick Navigation single-letter keys (`H` for Headings, `K` for Links, `F` for Form fields, `D` for Landmarks), and Enter to activate.
+     - Acoustic Profile: Synthesized crisp square-wave tone chirp (440Hz ➔ 660Hz) and NVDA red focus outline.
+   - **4. Windows Narrator**:
+     - Announcement Syntax: `[Name], [Role], [State], [Scan Position]` (e.g. `"Submit, button"`, `"Features, heading level 2"`, `"Dark mode, toggle switch, on"`).
+     - Desktop Navigation: Scan Mode navigation (`➔ / ⬅`), Quick Keys (`H` Heading, `L` Link, `B` Button, `D` Landmark), and Enter to activate.
+     - Acoustic Profile: Fluent two-tone melodic chime (D5 & A5 soft sine chord) and Windows high-contrast blue focus ring.
+   - **Side-by-Side 4-Reader Comparison Matrix**: Click **"Compare All 4"** to reveal a live cross-platform readout matrix for every element with individual "▶ Listen" speech preview buttons.
+   - **Interactive In-Page Screen Reader HUD**: Click **"Launch On-Page Sim"** to project an interactive glassmorphism HUD bar onto the live website, complete with on-screen gesture touch buttons (`Swipe ⬅`, `Swipe ➔`, `Double-Tap 👆`, `Rotor 🔄` / `Granularity 🔠`), keyboard shortcuts, focus cursor rings, and Web Speech API announcements.
+   - **Dedicated Screen Reader Score (0–100)**: Quantifies auditory ease-of-access, sequential heading hierarchy, ARIA landmarks, silent focus traps, and auditory friction barriers.
 
 5. **Interactive In-Page Issue Navigation & Neon Highlight Ring**:
    - **One-Click Navigation**: Click any reported issue card or specific element row to immediately scroll your active browser tab directly to the offending element.

@@ -710,25 +710,74 @@
       const name = (el.getAttribute('aria-label') || '').trim();
 
       if (tag === 'header' || role === 'banner') {
-        return { label: 'banner', spoken: name ? `"${name}", banner landmark` : 'banner landmark', vo: name ? `${name}, banner landmark` : 'banner landmark', nvda: `Banner landmark${name ? `, ${name}` : ''}` };
+        return {
+          label: 'banner',
+          spoken: name ? `"${name}", banner landmark` : 'banner landmark',
+          vo: name ? `${name}, banner landmark` : 'banner landmark',
+          talkback: name ? `${name}, Banner, Landmark` : 'Banner, Landmark',
+          nvda: `Banner landmark${name ? `, ${name}` : ''}`,
+          narrator: name ? `${name}, banner landmark` : 'banner landmark',
+        };
       }
       if (tag === 'nav' || role === 'navigation') {
-        return { label: 'navigation', spoken: name ? `"${name}", navigation landmark` : 'navigation landmark', vo: name ? `${name}, navigation landmark` : 'navigation landmark', nvda: `Navigation landmark${name ? `, ${name}` : ''}` };
+        return {
+          label: 'navigation',
+          spoken: name ? `"${name}", navigation landmark` : 'navigation landmark',
+          vo: name ? `${name}, navigation landmark` : 'navigation landmark',
+          talkback: name ? `${name}, Navigation, Landmark` : 'Navigation, Landmark',
+          nvda: `Navigation landmark${name ? `, ${name}` : ''}`,
+          narrator: name ? `${name}, navigation landmark` : 'navigation landmark',
+        };
       }
       if (tag === 'main' || role === 'main') {
-        return { label: 'main content', spoken: name ? `"${name}", main content landmark` : 'main content landmark', vo: name ? `${name}, main content landmark` : 'main content landmark', nvda: `Main landmark${name ? `, ${name}` : ''}` };
+        return {
+          label: 'main content',
+          spoken: name ? `"${name}", main content landmark` : 'main content landmark',
+          vo: name ? `${name}, main content landmark` : 'main content landmark',
+          talkback: name ? `${name}, Main, Landmark` : 'Main, Landmark',
+          nvda: `Main landmark${name ? `, ${name}` : ''}`,
+          narrator: name ? `${name}, main landmark` : 'main landmark',
+        };
       }
       if (tag === 'footer' || role === 'contentinfo') {
-        return { label: 'content information', spoken: name ? `"${name}", content information landmark` : 'content information landmark', vo: name ? `${name}, content information landmark` : 'content information landmark', nvda: `Content information landmark${name ? `, ${name}` : ''}` };
+        return {
+          label: 'content information',
+          spoken: name ? `"${name}", content information landmark` : 'content information landmark',
+          vo: name ? `${name}, content information landmark` : 'content information landmark',
+          talkback: name ? `${name}, Content information, Landmark` : 'Content information, Landmark',
+          nvda: `Content information landmark${name ? `, ${name}` : ''}`,
+          narrator: name ? `${name}, content information landmark` : 'content information landmark',
+        };
       }
       if (tag === 'aside' || role === 'complementary') {
-        return { label: 'complementary', spoken: name ? `"${name}", complementary landmark` : 'complementary landmark', vo: name ? `${name}, complementary landmark` : 'complementary landmark', nvda: `Complementary landmark${name ? `, ${name}` : ''}` };
+        return {
+          label: 'complementary',
+          spoken: name ? `"${name}", complementary landmark` : 'complementary landmark',
+          vo: name ? `${name}, complementary landmark` : 'complementary landmark',
+          talkback: name ? `${name}, Complementary, Landmark` : 'Complementary, Landmark',
+          nvda: `Complementary landmark${name ? `, ${name}` : ''}`,
+          narrator: name ? `${name}, complementary landmark` : 'complementary landmark',
+        };
       }
       if (role === 'search') {
-        return { label: 'search', spoken: name ? `"${name}", search landmark` : 'search landmark', vo: name ? `${name}, search landmark` : 'search landmark', nvda: `Search landmark${name ? `, ${name}` : ''}` };
+        return {
+          label: 'search',
+          spoken: name ? `"${name}", search landmark` : 'search landmark',
+          vo: name ? `${name}, search landmark` : 'search landmark',
+          talkback: name ? `${name}, Search, Landmark` : 'Search, Landmark',
+          nvda: `Search landmark${name ? `, ${name}` : ''}`,
+          narrator: name ? `${name}, search landmark` : 'search landmark',
+        };
       }
       if ((tag === 'section' || tag === 'form' || role === 'region') && name) {
-        return { label: 'region', spoken: `"${name}", region landmark`, vo: `${name}, region landmark`, nvda: `Region landmark, ${name}` };
+        return {
+          label: 'region',
+          spoken: `"${name}", region landmark`,
+          vo: `${name}, region landmark`,
+          talkback: `${name}, Region, Landmark`,
+          nvda: `Region landmark, ${name}`,
+          narrator: `${name}, region landmark`,
+        };
       }
       return null;
     }
@@ -750,8 +799,9 @@
           rotorCategory: 'landmark',
           spokenText: lm.spoken,
           voiceOverText: lm.vo,
+          talkBackText: lm.talkback,
           nvdaText: lm.nvda,
-          narratorText: lm.vo,
+          narratorText: lm.narrator,
           state: '',
           selector: getUniqueSelector(node),
           isBarrier: false,
@@ -771,6 +821,7 @@
             rotorCategory: 'heading',
             spokenText: `"${name}", heading level ${lvl}`,
             voiceOverText: `${name}, heading level ${lvl}`,
+            talkBackText: `${name}, Heading ${lvl}`,
             nvdaText: `Heading level ${lvl}, ${name}`,
             narratorText: `${name}, heading level ${lvl}`,
             state: '',
@@ -785,6 +836,7 @@
             rotorCategory: 'heading',
             spokenText: `empty heading level ${lvl}`,
             voiceOverText: `empty, heading level ${lvl}`,
+            talkBackText: `Unlabelled, Heading ${lvl}`,
             nvdaText: `Heading level ${lvl}, blank`,
             narratorText: `empty heading level ${lvl}`,
             state: '',
@@ -806,19 +858,35 @@
           const isExpanded = node.getAttribute('aria-expanded');
           if (isExpanded === 'true') states.push('expanded');
           else if (isExpanded === 'false') states.push('collapsed');
-          if (node.hasAttribute('disabled') || node.getAttribute('aria-disabled') === 'true') states.push('dimmed');
+          const isDisabled = node.hasAttribute('disabled') || node.getAttribute('aria-disabled') === 'true';
+          if (isDisabled) states.push('dimmed');
           const stateStr = states.join(', ');
+
+          const tbStates = [];
+          if (isExpanded === 'true') tbStates.push('expanded');
+          else if (isExpanded === 'false') tbStates.push('collapsed');
+          if (isDisabled) tbStates.push('disabled');
+          const tbStateStr = tbStates.length ? `, ${tbStates.join(', ')}` : '';
+
+          const nvdaStates = [];
+          if (isExpanded === 'true') nvdaStates.push('expanded');
+          else if (isExpanded === 'false') nvdaStates.push('collapsed');
+          if (isDisabled) nvdaStates.push('unavailable');
+          const nvdaStateStr = nvdaStates.length ? `, ${nvdaStates.join(', ')}` : '';
 
           if (name) {
             const stateSuffix = stateStr ? `, ${stateStr}` : '';
+            const actionHint = isExpanded === 'false' ? ', double tap to expand' : isExpanded === 'true' ? ', double tap to collapse' : ', double tap to activate';
+            const tbHint = isExpanded === 'false' ? ', double-tap to expand' : isExpanded === 'true' ? ', double-tap to collapse' : ', double-tap to activate';
             results.push({
               element: node,
               type: 'Button',
               rotorCategory: 'control',
               spokenText: `"${name}"${stateSuffix}, button`,
-              voiceOverText: `${name}${stateSuffix}, button${isExpanded === 'false' ? ', double tap to expand' : ''}`,
-              nvdaText: `Button, ${name}${stateSuffix}`,
-              narratorText: `${name}${stateSuffix}, button`,
+              voiceOverText: `${name}${stateSuffix}, button${isDisabled ? '' : actionHint}`,
+              talkBackText: `${name}, Button${tbStateStr}${isDisabled ? '' : tbHint}`,
+              nvdaText: `Button, ${name}${nvdaStateStr}`,
+              narratorText: `${name}, button${stateSuffix}`,
               state: stateStr,
               selector: getUniqueSelector(node),
               isBarrier: false,
@@ -830,7 +898,8 @@
               type: 'Button',
               rotorCategory: 'control',
               spokenText: 'unlabelled button',
-              voiceOverText: 'unlabelled button',
+              voiceOverText: 'unlabelled, button',
+              talkBackText: 'Unlabelled, Button',
               nvdaText: 'Button, blank',
               narratorText: 'button, unlabelled',
               state: stateStr,
@@ -850,15 +919,18 @@
 
           if (name) {
             const isVague = vaguePhrases.has(name.toLowerCase());
-            const stateSuffix = stateStr ? ` (${stateStr})` : '';
+            const voSuffix = stateStr ? ', opens in new window' : '';
+            const tbSuffix = stateStr ? ', opens in new tab' : '';
+            const nvdaSuffix = stateStr ? ', opens in new window' : '';
             results.push({
               element: node,
               type: 'Link',
               rotorCategory: 'link',
-              spokenText: `"${name}"${stateSuffix}, link`,
-              voiceOverText: `${name}${stateSuffix}, link`,
-              nvdaText: `Link, ${name}${stateSuffix}`,
-              narratorText: `${name}${stateSuffix}, link`,
+              spokenText: `"${name}"${stateStr ? ` (${stateStr})` : ''}, link`,
+              voiceOverText: `${name}${voSuffix}, link`,
+              talkBackText: `${name}, Link${tbSuffix}`,
+              nvdaText: `Link, ${name}${nvdaSuffix}`,
+              narratorText: `${name}${voSuffix}, link`,
               state: stateStr,
               selector: getUniqueSelector(node),
               isBarrier: isVague,
@@ -870,7 +942,8 @@
               type: 'Link',
               rotorCategory: 'link',
               spokenText: 'unlabelled link',
-              voiceOverText: 'unlabelled link',
+              voiceOverText: 'unlabelled, link',
+              talkBackText: 'Unlabelled, Link',
               nvdaText: 'Link, blank',
               narratorText: 'link, unlabelled',
               state: stateStr,
@@ -886,46 +959,104 @@
           const fieldType = (node.getAttribute('type') || tag).toLowerCase();
           const isRequired = node.hasAttribute('required') || node.getAttribute('aria-required') === 'true';
           const isInvalid = node.getAttribute('aria-invalid') === 'true';
-          const states = [];
-          if (isRequired) states.push('required');
-          if (isInvalid) states.push('invalid data');
 
-          let roleLabel = 'edit text';
           let itemType = 'Form Field';
+          let voRole = 'edit text';
+          let tbRole = 'Edit box';
+          let nvdaRole = 'Edit';
+          let narRole = 'edit';
+          let voState = isRequired ? 'required' : '';
+          let tbState = isRequired ? 'Required' : '';
+          let nvdaState = isRequired ? 'required' : '';
+          let narState = isRequired ? 'required' : '';
+          let hint = 'double-tap to edit';
+          let tbHint = 'double-tap to enter text';
 
           if (fieldType === 'checkbox' || role === 'checkbox') {
             itemType = 'Checkbox';
-            roleLabel = 'checkbox';
+            voRole = 'checkbox';
+            tbRole = 'Check box';
+            nvdaRole = 'Check box';
+            narRole = 'check box';
             const isChecked = node.checked || node.getAttribute('aria-checked') === 'true';
-            states.push(isChecked ? 'checked' : 'unchecked');
+            voState = isChecked ? 'checked' : 'unchecked';
+            tbState = isChecked ? 'Checked' : 'Not checked';
+            nvdaState = isChecked ? 'checked' : 'not checked';
+            narState = isChecked ? 'checked' : 'unchecked';
+            hint = 'double-tap to toggle';
+            tbHint = 'double-tap to toggle';
           } else if (role === 'switch') {
             itemType = 'Switch';
-            roleLabel = 'switch';
+            voRole = 'switch';
+            tbRole = 'Switch';
+            nvdaRole = 'Toggle button';
+            narRole = 'toggle switch';
             const isChecked = node.getAttribute('aria-checked') === 'true';
-            states.push(isChecked ? 'on' : 'off');
+            voState = isChecked ? 'on' : 'off';
+            tbState = isChecked ? 'On' : 'Off';
+            nvdaState = isChecked ? 'pressed' : 'not pressed';
+            narState = isChecked ? 'on' : 'off';
+            hint = 'double-tap to toggle setting';
+            tbHint = 'double-tap to toggle';
           } else if (role === 'tab') {
             itemType = 'Tab';
-            roleLabel = 'tab';
+            voRole = 'tab';
+            tbRole = 'Tab';
+            nvdaRole = 'Tab';
+            narRole = 'tab';
             const isSelected = node.getAttribute('aria-selected') === 'true';
-            states.push(isSelected ? 'selected' : 'not selected');
+            voState = isSelected ? 'selected' : 'not selected';
+            tbState = isSelected ? 'Selected' : 'Not selected';
+            nvdaState = isSelected ? 'selected' : 'not selected';
+            narState = isSelected ? 'selected' : 'not selected';
+            hint = 'double-tap to select';
+            tbHint = 'double-tap to select';
           } else if (fieldType === 'radio' || role === 'radio') {
             itemType = 'Radio Button';
-            roleLabel = 'radio button';
-            states.push(node.checked ? 'selected' : 'not selected');
+            voRole = 'radio button';
+            tbRole = 'Radio button';
+            nvdaRole = 'Radio button';
+            narRole = 'radio button';
+            const isChecked = node.checked || node.getAttribute('aria-checked') === 'true';
+            voState = isChecked ? 'selected' : '';
+            tbState = isChecked ? 'Checked' : 'Not checked';
+            nvdaState = isChecked ? 'checked' : 'not checked';
+            narState = isChecked ? 'selected' : '';
+            hint = 'double-tap to select';
+            tbHint = 'double-tap to select';
+          } else if (tag === 'select') {
+            itemType = 'Select';
+            voRole = 'pop-up button';
+            tbRole = 'Drop-down list';
+            nvdaRole = 'Combo box';
+            narRole = 'combo box';
+            hint = 'double-tap to activate';
+            tbHint = 'double-tap to change';
           }
 
-          const stateStr = states.join(', ');
+          if (isInvalid) {
+            voState = voState ? `${voState}, invalid data` : 'invalid data';
+            tbState = tbState ? `${tbState}, Invalid entry` : 'Invalid entry';
+            nvdaState = nvdaState ? `${nvdaState}, invalid entry` : 'invalid entry';
+            narState = narState ? `${narState}, invalid data` : 'invalid data';
+          }
+
           if (name) {
-            const stateSuffix = stateStr ? `, ${stateStr}` : '';
+            const voStateStr = voState ? `, ${voState}` : '';
+            const tbStateStr = tbState ? `, ${tbState}` : '';
+            const nvdaStateStr = nvdaState ? `, ${nvdaState}` : '';
+            const narStateStr = narState ? `, ${narState}` : '';
+
             results.push({
               element: node,
               type: itemType,
               rotorCategory: 'control',
-              spokenText: `"${name}"${stateSuffix}, ${roleLabel}`,
-              voiceOverText: `${name}${stateSuffix}, ${roleLabel}`,
-              nvdaText: `${roleLabel.charAt(0).toUpperCase() + roleLabel.slice(1)}, ${name}${stateSuffix}`,
-              narratorText: `${name}${stateSuffix}, ${roleLabel}`,
-              state: stateStr,
+              spokenText: `"${name}"${voStateStr}, ${voRole}`,
+              voiceOverText: `${name}${voStateStr}, ${voRole}, ${hint}`,
+              talkBackText: `${name}, ${tbRole}${tbStateStr}, ${tbHint}`,
+              nvdaText: `${nvdaRole}, ${name}${nvdaStateStr}`,
+              narratorText: `${name}, ${narRole}${narStateStr}`,
+              state: voState,
               selector: getUniqueSelector(node),
               isBarrier: false,
               earcon: 'control',
@@ -935,11 +1066,12 @@
               element: node,
               type: itemType,
               rotorCategory: 'control',
-              spokenText: `unlabelled ${roleLabel}`,
-              voiceOverText: `unlabelled ${roleLabel}`,
-              nvdaText: `${roleLabel.charAt(0).toUpperCase() + roleLabel.slice(1)}, unlabelled`,
-              narratorText: `unlabelled ${roleLabel}`,
-              state: stateStr,
+              spokenText: `unlabelled ${voRole}`,
+              voiceOverText: `unlabelled, ${voRole}`,
+              talkBackText: `Unlabelled, ${tbRole}`,
+              nvdaText: `${nvdaRole}, unlabelled`,
+              narratorText: `unlabelled ${narRole}`,
+              state: voState,
               selector: getUniqueSelector(node),
               isBarrier: true,
               earcon: 'barrier',
@@ -967,6 +1099,7 @@
             rotorCategory: 'image',
             spokenText: `"${effectiveText}", graphic`,
             voiceOverText: `${effectiveText}, image`,
+            talkBackText: `${effectiveText}, Graphic`,
             nvdaText: `Graphic, ${effectiveText}`,
             narratorText: `${effectiveText}, image`,
             state: '',
@@ -982,6 +1115,7 @@
             rotorCategory: 'image',
             spokenText: `"${srcName}", unlabelled graphic`,
             voiceOverText: `${srcName}, image, unlabelled graphic`,
+            talkBackText: `Unlabelled graphic, ${srcName}`,
             nvdaText: `Graphic, ${srcName}, unlabelled`,
             narratorText: `unlabelled graphic, ${srcName}`,
             state: '',
@@ -1003,6 +1137,7 @@
             rotorCategory: 'text',
             spokenText: `"${text}"`,
             voiceOverText: text,
+            talkBackText: text,
             nvdaText: text,
             narratorText: text,
             state: '',
@@ -1031,6 +1166,7 @@
               rotorCategory: 'text',
               spokenText: `"${text}"`,
               voiceOverText: text,
+              talkBackText: text,
               nvdaText: text,
               narratorText: text,
               state: '',
@@ -1057,6 +1193,7 @@
                 rotorCategory: 'text',
                 spokenText: `"${text}"`,
                 voiceOverText: text,
+                talkBackText: text,
                 nvdaText: text,
                 narratorText: text,
                 state: '',
@@ -2462,67 +2599,152 @@
   };
 
   /**
-   * Starts the Interactive In-Page VoiceOver Simulator.
-   * Enables full document reading order navigation via Arrow keys (➔ / ⬅ / VO+Arrow),
-   * Tab for interactive controls, and click-to-speak on any element.
-   * Speaks exact screen reader announcements aloud with an Apple VoiceOver-style caption pill.
+   * Starts the Interactive In-Page Screen Reader Simulator.
+   * Accurately emulates:
+   * 1. iOS VoiceOver: [Name], [State], [Role], [Hint] + Touch Swipes & Virtual Rotor
+   * 2. Android TalkBack: [Name], [Role], [State], [Hint] + Touch Swipes & Reading Granularity
+   * 3. NVDA: [Role], [Name], [State] + Virtual Buffer & Quick Nav Keys (H, K, F, D)
+   * 4. Windows Narrator: [Name], [Role], [State], [Scan] + Scan Mode & Quick Keys (H, L, B, D)
+   * @param {'ios-voiceover'|'android-talkback'|'nvda'|'narrator'|'voiceover'|'talkback'} [persona]
    */
-  window.__auditforgeStartVoiceOverSimulator = function (persona = 'voiceover') {
+  window.__auditforgeStartVoiceOverSimulator = function (persona = 'ios-voiceover') {
     window.__auditforgeStopVoiceOverSimulator();
 
-    const narrative = extractScreenReaderNarrative(document.body, 300);
+    const normPersona = (persona || '').toLowerCase().trim();
+    const isTalkBack = normPersona === 'android-talkback' || normPersona === 'talkback';
+    const isNVDA = normPersona === 'nvda';
+    const isNarrator = normPersona === 'narrator' || normPersona === 'windows-narrator';
+    const isVoiceOver = !isTalkBack && !isNVDA && !isNarrator;
+
+    const narrative = extractScreenReaderNarrative(document.body, 400);
     let activeIndex = -1;
+    let rotorCategories = ['all', 'heading', 'link', 'control', 'landmark'];
+    let currentRotorIndex = 0;
+
+    const readerConfig = isTalkBack ? {
+      name: 'Android TalkBack',
+      badgeIcon: '🤖',
+      badgeBg: '#0D9FBA',
+      badgeColor: '#000000',
+      outlineColor: '#0D9FBA',
+      boxGlow: '0 0 14px rgba(13, 159, 186, 0.85)',
+      outlineStyle: '3.5px solid #0D9FBA',
+      formula: '[Name], [Role], [State], [Hint]',
+      modeType: 'Touch & Granularity',
+    } : isNVDA ? {
+      name: 'NVDA',
+      badgeIcon: '🖥️',
+      badgeBg: '#ef4444',
+      badgeColor: '#ffffff',
+      outlineColor: '#ef4444',
+      boxGlow: '0 0 12px rgba(239, 68, 68, 0.75)',
+      outlineStyle: '3.5px dashed #ef4444',
+      formula: '[Role], [Name], [State]',
+      modeType: 'Virtual Buffer',
+    } : isNarrator ? {
+      name: 'Windows Narrator',
+      badgeIcon: '🪟',
+      badgeBg: '#0078d4',
+      badgeColor: '#ffffff',
+      outlineColor: '#0078d4',
+      boxGlow: '0 0 14px rgba(0, 120, 212, 0.85)',
+      outlineStyle: '3.5px solid #0078d4',
+      formula: '[Name], [Role], [State], [Scan]',
+      modeType: 'Scan Mode ON',
+    } : {
+      name: 'iOS VoiceOver',
+      badgeIcon: '🍏',
+      badgeBg: '#a855f7',
+      badgeColor: '#ffffff',
+      outlineColor: '#a855f7',
+      boxGlow: '0 0 0 2px #ffffff, 0 0 16px rgba(168, 85, 247, 0.9)',
+      outlineStyle: '3.5px solid #000000',
+      formula: '[Name], [State], [Role], [Hint]',
+      modeType: 'Touch & Rotor',
+    };
 
     const banner = document.createElement('div');
     banner.id = '__auditforge_vo_sim_banner__';
     banner.style.cssText = `
       position: fixed;
-      bottom: 24px;
+      bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
       z-index: 2147483647;
-      background: rgba(0, 0, 0, 0.95);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
+      background: rgba(4, 8, 9, 0.96);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
       border: 1.5px solid #1b6f7e;
-      border-radius: 30px;
-      box-shadow: 0 10px 35px rgba(0, 0, 0, 0.9), 0 0 20px rgba(13, 159, 186, 0.3);
-      padding: 8px 18px;
+      border-radius: 24px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.95), 0 0 25px rgba(13, 159, 186, 0.25);
+      padding: 10px 18px;
       display: flex;
-      align-items: center;
-      gap: 10px;
+      flex-direction: column;
+      gap: 8px;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       color: #e2ebed;
       font-size: 12px;
       user-select: none;
       pointer-events: auto;
-      animation: __af_sim_pop 0.25s ease-out;
-      max-width: 92vw;
+      animation: __af_sim_pop 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+      max-width: 95vw;
+      width: max-content;
     `;
 
-    const personaLabel = persona === 'nvda' ? 'NVDA' : persona === 'narrator' ? 'Narrator' : 'VoiceOver';
+    // Dynamic gesture buttons based on mobile touch vs desktop keys
+    const controlsHtml = (isVoiceOver || isTalkBack) ? `
+      <div class="__af_sim_row __af_sim_gestures">
+        <button type="button" class="__af_sim_gesture_btn" id="__af_sim_swipe_prev__" title="Swipe Left (Previous item / Left Arrow)">
+          <span>⬅</span> Swipe Left
+        </button>
+        <button type="button" class="__af_sim_gesture_btn" id="__af_sim_swipe_next__" title="Swipe Right (Next item / Right Arrow)">
+          Swipe Right <span>➔</span>
+        </button>
+        <button type="button" class="__af_sim_gesture_btn __af_sim_btn_accent" id="__af_sim_double_tap__" title="Double-Tap to activate focused element (Space/Enter)">
+          <span>👆</span> Double-Tap
+        </button>
+        <button type="button" class="__af_sim_gesture_btn" id="__af_sim_rotor_btn__" title="${isVoiceOver ? 'Cycle VoiceOver Rotor categories (R key)' : 'Cycle TalkBack Granularity (G key)'}">
+          <span>${isVoiceOver ? '🔄' : '🔠'}</span> <span id="__af_sim_rotor_label__">${isVoiceOver ? 'Rotor: All' : 'Granularity: Default'}</span>
+        </button>
+      </div>
+    ` : `
+      <div class="__af_sim_row __af_sim_gestures">
+        <button type="button" class="__af_sim_gesture_btn" id="__af_sim_swipe_prev__" title="Previous item (Left Arrow / Shift+Tab)">⏮ Prev</button>
+        <button type="button" class="__af_sim_gesture_btn" id="__af_sim_swipe_next__" title="Next item (Right Arrow / Tab)">Next ⏭</button>
+        <button type="button" class="__af_sim_gesture_btn __af_sim_btn_accent" id="__af_sim_double_tap__" title="Activate/Click element (Space/Enter)">Enter ↵</button>
+        <button type="button" class="__af_sim_gesture_btn" id="__af_sim_quick_h__" title="Jump to next Heading (H key)">[H] Heading</button>
+        <button type="button" class="__af_sim_gesture_btn" id="__af_sim_quick_link__" title="${isNVDA ? 'Jump to next Link (K key)' : 'Jump to next Link (L key)'}">[${isNVDA ? 'K' : 'L'}] Link</button>
+        <button type="button" class="__af_sim_gesture_btn" id="__af_sim_quick_ctrl__" title="${isNVDA ? 'Jump to next Form field (F key)' : 'Jump to next Button (B key)'}">[${isNVDA ? 'F' : 'B'}] Control</button>
+        <button type="button" class="__af_sim_gesture_btn" id="__af_sim_quick_landmark__" title="Jump to next Landmark (D key)">[D] Landmark</button>
+      </div>
+    `;
 
     banner.innerHTML = `
       <style>
-        @keyframes __af_sim_pop { from { opacity: 0; transform: translate(-50%, 15px) scale(0.95); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
-        .__af_vo_badge { background: #0D9FBA; color: #000000; font-weight: 800; font-size: 10px; padding: 2px 8px; border-radius: 12px; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
-        .__af_vo_step_badge { background: rgba(27, 111, 126, 0.28); color: #0D9FBA; border: 1px solid rgba(13, 159, 186, 0.35); font-weight: 700; font-size: 10px; padding: 2px 6px; border-radius: 8px; white-space: nowrap; }
-        .__af_vo_role_tag { background: rgba(18, 119, 136, 0.25); color: #0D9FBA; border: 1px solid rgba(27, 111, 126, 0.35); font-weight: 700; font-size: 10px; padding: 2px 7px; border-radius: 8px; text-transform: uppercase; white-space: nowrap; }
-        .__af_vo_caption { color: #e2ebed; font-weight: 500; font-style: italic; max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .__af_vo_nav_btn { background: #080f12; border: 1px solid rgba(27, 111, 126, 0.35); color: #868180; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 12px; cursor: pointer; transition: all 0.15s; }
-        .__af_vo_nav_btn:hover { background: rgba(27, 111, 126, 0.4); border-color: #0D9FBA; color: #0D9FBA; }
-        .__af_vo_btn_exit { background: #080f12; border: 1px solid rgba(27, 111, 126, 0.35); color: #868180; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 14px; cursor: pointer; transition: all 0.15s; }
-        .__af_vo_btn_exit:hover { background: rgba(239, 68, 68, 0.3); border-color: #ef4444; color: #fff; }
-        .__af_vo_hint { color: #868180; font-size: 10.5px; margin-left: 2px; white-space: nowrap; }
+        @keyframes __af_sim_pop { from { opacity: 0; transform: translate(-50%, 18px) scale(0.96); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
+        .__af_sim_row { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
+        .__af_sim_badge { background: ${readerConfig.badgeBg}; color: ${readerConfig.badgeColor}; font-weight: 800; font-size: 10.5px; padding: 3px 9px; border-radius: 12px; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
+        .__af_sim_step_badge { background: rgba(27, 111, 126, 0.3); color: #0D9FBA; border: 1px solid rgba(13, 159, 186, 0.4); font-weight: 700; font-size: 10px; padding: 2px 7px; border-radius: 8px; white-space: nowrap; }
+        .__af_sim_role_tag { background: rgba(18, 119, 136, 0.3); color: #0D9FBA; border: 1px solid rgba(27, 111, 126, 0.4); font-weight: 700; font-size: 10px; padding: 2px 7px; border-radius: 8px; text-transform: uppercase; white-space: nowrap; }
+        .__af_sim_formula { color: #868180; font-size: 10px; background: #080f12; padding: 2px 6px; border-radius: 6px; border: 1px solid rgba(27, 111, 126, 0.25); white-space: nowrap; }
+        .__af_sim_caption { color: #e2ebed; font-weight: 500; font-style: italic; max-width: 480px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .__af_sim_gesture_btn { background: #080f12; border: 1px solid rgba(27, 111, 126, 0.4); color: #e2ebed; font-size: 11px; font-weight: 600; padding: 4px 9px; border-radius: 10px; cursor: pointer; transition: all 0.15s ease; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+        .__af_sim_gesture_btn:hover { background: rgba(27, 111, 126, 0.4); border-color: #0D9FBA; color: #0D9FBA; transform: translateY(-1px); }
+        .__af_sim_gesture_btn:active { transform: translateY(0); }
+        .__af_sim_btn_accent { background: rgba(13, 159, 186, 0.2); border-color: #0D9FBA; color: #0D9FBA; }
+        .__af_sim_btn_accent:hover { background: #0D9FBA; color: #000; }
+        .__af_sim_btn_exit { background: #080f12; border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 12px; cursor: pointer; transition: all 0.15s; margin-left: auto; }
+        .__af_sim_btn_exit:hover { background: #ef4444; color: #fff; }
       </style>
-      <span class="__af_vo_badge">🎙️ ${personaLabel} Mode</span>
-      <span id="__af_vo_step_count__" class="__af_vo_step_badge">[0/${narrative.length}]</span>
-      <span id="__af_vo_role_tag__" class="__af_vo_role_tag">PAGE</span>
-      <button type="button" class="__af_vo_nav_btn" id="__af_vo_prev_btn__" title="Previous item (Left Arrow / Shift+Tab)">⏮</button>
-      <button type="button" class="__af_vo_nav_btn" id="__af_vo_next_btn__" title="Next item (Right Arrow / Tab)">⏭</button>
-      <span id="__af_vo_caption_text__" class="__af_vo_caption">Press ➔ to start VoiceOver reading flow...</span>
-      <span class="__af_vo_hint">(➔/⬅ navigate, Tab controls, Esc exit)</span>
-      <button type="button" class="__af_vo_btn_exit" id="__af_vo_exit_btn__">Exit ✕</button>
+      <div class="__af_sim_row">
+        <span class="__af_sim_badge">${readerConfig.badgeIcon} ${readerConfig.name}</span>
+        <span id="__af_vo_step_count__" class="__af_sim_step_badge">[0/${narrative.length}]</span>
+        <span id="__af_vo_role_tag__" class="__af_sim_role_tag">PAGE</span>
+        <span class="__af_sim_formula" title="Emulated speech announcement formula">${readerConfig.formula}</span>
+        <span id="__af_vo_caption_text__" class="__af_sim_caption">Navigating ${readerConfig.name}...</span>
+        <button type="button" class="__af_sim_btn_exit" id="__af_vo_exit_btn__">Exit ✕</button>
+      </div>
+      ${controlsHtml}
     `;
 
     document.body.appendChild(banner);
@@ -2530,6 +2752,7 @@
     let activeHighlightEl = null;
     let originalOutline = '';
     let originalOutlineOffset = '';
+    let originalBoxShadow = '';
 
     function isFocusable(el) {
       if (!el) return false;
@@ -2541,36 +2764,140 @@
       return false;
     }
 
+    /**
+     * Plays authentic synthesized sound cues (earcons) tailored to each screen reader
+     */
     function playSimEarcon(type) {
       try {
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
         if (!AudioCtx) return;
         const ctx = new AudioCtx();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
         const now = ctx.currentTime;
-        if (type === 'landmark') {
-          osc.frequency.setValueAtTime(320, now);
-          osc.frequency.exponentialRampToValueAtTime(640, now + 0.1);
-        } else if (type === 'link') {
-          osc.frequency.setValueAtTime(580, now);
-          osc.frequency.exponentialRampToValueAtTime(880, now + 0.08);
-        } else if (type === 'control') {
-          osc.frequency.setValueAtTime(440, now);
-          osc.frequency.setValueAtTime(520, now + 0.05);
-        } else if (type === 'barrier') {
-          osc.frequency.setValueAtTime(220, now);
-          osc.frequency.setValueAtTime(180, now + 0.08);
+
+        if (isTalkBack) {
+          // Android TalkBack: Resonant bubble bloop (frequency drop)
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          if (type === 'barrier') {
+            osc.frequency.setValueAtTime(220, now);
+            osc.frequency.exponentialRampToValueAtTime(110, now + 0.14);
+            gain.gain.setValueAtTime(0.08, now);
+            gain.gain.linearRampToValueAtTime(0.001, now + 0.14);
+            osc.start(now);
+            osc.stop(now + 0.14);
+          } else {
+            osc.frequency.setValueAtTime(460, now);
+            osc.frequency.exponentialRampToValueAtTime(280, now + 0.09);
+            gain.gain.setValueAtTime(0.06, now);
+            gain.gain.linearRampToValueAtTime(0.001, now + 0.09);
+            osc.start(now);
+            osc.stop(now + 0.09);
+          }
+        } else if (isNVDA) {
+          // NVDA: Synthesized crisp dual-tone chirp
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'square';
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          if (type === 'barrier') {
+            osc.frequency.setValueAtTime(140, now);
+            gain.gain.setValueAtTime(0.07, now);
+            gain.gain.linearRampToValueAtTime(0.001, now + 0.12);
+            osc.start(now);
+            osc.stop(now + 0.12);
+          } else {
+            osc.frequency.setValueAtTime(440, now);
+            osc.frequency.setValueAtTime(660, now + 0.04);
+            gain.gain.setValueAtTime(0.035, now);
+            gain.gain.linearRampToValueAtTime(0.001, now + 0.08);
+            osc.start(now);
+            osc.stop(now + 0.08);
+          }
+        } else if (isNarrator) {
+          // Windows Narrator: Fluent two-tone melodic chime (D5 & A5 soft sine)
+          const osc1 = ctx.createOscillator();
+          const osc2 = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc1.type = 'sine';
+          osc2.type = 'sine';
+          osc1.connect(gain);
+          osc2.connect(gain);
+          gain.connect(ctx.destination);
+          if (type === 'barrier') {
+            osc1.frequency.setValueAtTime(180, now);
+            osc2.frequency.setValueAtTime(135, now);
+          } else {
+            osc1.frequency.setValueAtTime(587.33, now);
+            osc2.frequency.setValueAtTime(880, now);
+          }
+          gain.gain.setValueAtTime(0.04, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+          osc1.start(now);
+          osc2.start(now);
+          osc1.stop(now + 0.12);
+          osc2.stop(now + 0.12);
         } else {
-          osc.frequency.setValueAtTime(380, now);
+          // iOS VoiceOver: Harmonic crystalline bell chime (E5 & C6 harmonic)
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          if (type === 'barrier') {
+            osc.frequency.setValueAtTime(196, now);
+            osc.frequency.exponentialRampToValueAtTime(110, now + 0.15);
+            gain.gain.setValueAtTime(0.07, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+            osc.start(now);
+            osc.stop(now + 0.15);
+          } else if (type === 'link') {
+            osc.frequency.setValueAtTime(659.25, now);
+            osc.frequency.exponentialRampToValueAtTime(987.77, now + 0.08);
+            gain.gain.setValueAtTime(0.05, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+            osc.start(now);
+            osc.stop(now + 0.08);
+          } else {
+            osc.frequency.setValueAtTime(523.25, now);
+            osc.frequency.exponentialRampToValueAtTime(783.99, now + 0.07);
+            gain.gain.setValueAtTime(0.045, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+            osc.start(now);
+            osc.stop(now + 0.07);
+          }
         }
-        gain.gain.setValueAtTime(0.03, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
-        osc.start(now);
-        osc.stop(now + 0.1);
       } catch (e) {}
+    }
+
+    /**
+     * Selects voice matching the target platform
+     */
+    function pickVoiceForPersona() {
+      if (!('speechSynthesis' in window)) return null;
+      const voices = window.speechSynthesis.getVoices() || [];
+      if (voices.length === 0) return null;
+
+      if (isVoiceOver) {
+        return voices.find(v => /samantha|daniel|karen|victoria|alex|apple/i.test(v.name)) ||
+               voices.find(v => v.lang && v.lang.startsWith('en')) || voices[0];
+      }
+      if (isTalkBack) {
+        return voices.find(v => /google|android/i.test(v.name)) ||
+               voices.find(v => v.lang && v.lang.startsWith('en')) || voices[0];
+      }
+      if (isNVDA) {
+        return voices.find(v => /espeak|david|zira/i.test(v.name)) ||
+               voices.find(v => v.lang && v.lang.startsWith('en')) || voices[0];
+      }
+      if (isNarrator) {
+        return voices.find(v => /microsoft|david|mark|zira|george|natural/i.test(v.name)) ||
+               voices.find(v => v.lang && v.lang.startsWith('en')) || voices[0];
+      }
+      return null;
     }
 
     function moveToIndex(idx, shouldFocus = false) {
@@ -2580,15 +2907,19 @@
       const item = narrative[activeIndex];
       const el = item.element;
 
-      // Format spoken announcement for persona
-      let textToSpeak = item.voiceOverText || item.spokenText;
-      if (persona === 'nvda') {
+      // Select speech announcement formula for the active screen reader
+      let textToSpeak = item.spokenText;
+      if (isTalkBack) {
+        textToSpeak = item.talkBackText || item.spokenText;
+      } else if (isNVDA) {
         textToSpeak = item.nvdaText || item.spokenText;
-      } else if (persona === 'narrator') {
+      } else if (isNarrator) {
         textToSpeak = item.narratorText || item.spokenText;
+      } else {
+        textToSpeak = item.voiceOverText || item.spokenText;
       }
 
-      // Update caption bar and badges
+      // Update caption and badges
       const captionEl = document.getElementById('__af_vo_caption_text__');
       const stepCountEl = document.getElementById('__af_vo_step_count__');
       const roleTagEl = document.getElementById('__af_vo_role_tag__');
@@ -2597,20 +2928,40 @@
       if (stepCountEl) stepCountEl.textContent = `[${activeIndex + 1}/${narrative.length}]`;
       if (roleTagEl) roleTagEl.textContent = item.type.toUpperCase();
 
-      // Highlight target with glowing purple focus ring
+      // Clear previous highlight
       if (activeHighlightEl && activeHighlightEl.style) {
         activeHighlightEl.style.outline = originalOutline;
         activeHighlightEl.style.outlineOffset = originalOutlineOffset;
+        activeHighlightEl.style.boxShadow = originalBoxShadow;
       }
+
       activeHighlightEl = el;
       if (el && el.style) {
         originalOutline = el.style.outline;
         originalOutlineOffset = el.style.outlineOffset;
-        el.style.outline = '3.5px solid #a855f7';
-        el.style.outlineOffset = '3px';
+        originalBoxShadow = el.style.boxShadow;
+
+        // Apply screen-reader-specific cursor style
+        if (isVoiceOver) {
+          el.style.outline = '3.5px solid #000000';
+          el.style.outlineOffset = '2px';
+          el.style.boxShadow = '0 0 0 2px #ffffff, 0 0 16px rgba(168, 85, 247, 0.9)';
+        } else if (isTalkBack) {
+          el.style.outline = '3.5px solid #0D9FBA';
+          el.style.outlineOffset = '2.5px';
+          el.style.boxShadow = '0 0 14px rgba(13, 159, 186, 0.85)';
+        } else if (isNVDA) {
+          el.style.outline = '3.5px dashed #ef4444';
+          el.style.outlineOffset = '2.5px';
+          el.style.boxShadow = '0 0 12px rgba(239, 68, 68, 0.75)';
+        } else {
+          el.style.outline = '3.5px solid #0078d4';
+          el.style.outlineOffset = '2.5px';
+          el.style.boxShadow = '0 0 14px rgba(0, 120, 212, 0.85)';
+        }
       }
 
-      // Smoothly scroll element into view if needed
+      // Smoothly scroll element into view
       if (el && typeof el.scrollIntoView === 'function') {
         el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
       }
@@ -2619,15 +2970,87 @@
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(textToSpeak);
-        utterance.rate = 1.15;
+        utterance.rate = 1.2;
+        const matchedVoice = pickVoiceForPersona();
+        if (matchedVoice) utterance.voice = matchedVoice;
         window.speechSynthesis.speak(utterance);
       }
 
-      // Sound cue
+      // Play authentic earcon
       playSimEarcon(item.earcon || (item.isBarrier ? 'barrier' : 'text'));
 
       if (shouldFocus && el && typeof el.focus === 'function') {
         try { el.focus({ preventScroll: true }); } catch (e) {}
+      }
+    }
+
+    /**
+     * Activates / taps on the current focused element
+     */
+    function activateCurrentElement() {
+      if (activeIndex < 0 || activeIndex >= narrative.length) return;
+      const el = narrative[activeIndex]?.element;
+      if (!el) return;
+
+      playSimEarcon('control');
+
+      const tag = el.tagName.toLowerCase();
+      if (tag === 'input' && (el.type === 'checkbox' || el.type === 'radio')) {
+        el.checked = !el.checked;
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      } else if (el.getAttribute('role') === 'switch' || el.getAttribute('aria-checked') !== null) {
+        const isChecked = el.getAttribute('aria-checked') === 'true';
+        el.setAttribute('aria-checked', String(!isChecked));
+        el.click();
+      } else if (typeof el.click === 'function') {
+        el.click();
+      } else if (typeof el.focus === 'function') {
+        el.focus();
+      }
+
+      // Flash feedback
+      const captionEl = document.getElementById('__af_vo_caption_text__');
+      if (captionEl) {
+        const prev = captionEl.textContent;
+        captionEl.textContent = `⚡ Activated "${narrative[activeIndex].accessibleName || narrative[activeIndex].type}"`;
+        setTimeout(() => { if (captionEl) captionEl.textContent = prev; }, 1400);
+      }
+    }
+
+    /**
+     * Jumps to the next element matching a rotor / quick key category
+     */
+    function jumpToCategory(cat) {
+      if (narrative.length === 0) return;
+      let target = -1;
+      for (let i = activeIndex + 1; i < narrative.length; i++) {
+        if (cat === 'all' || narrative[i].rotorCategory === cat) { target = i; break; }
+      }
+      if (target === -1) {
+        // Wrap around from beginning
+        for (let i = 0; i <= activeIndex; i++) {
+          if (cat === 'all' || narrative[i].rotorCategory === cat) { target = i; break; }
+        }
+      }
+      if (target !== -1) {
+        moveToIndex(target, true);
+      }
+    }
+
+    /**
+     * Cycles through Rotor (VoiceOver) or Granularity (TalkBack)
+     */
+    function cycleRotorOrGranularity() {
+      currentRotorIndex = (currentRotorIndex + 1) % rotorCategories.length;
+      const cat = rotorCategories[currentRotorIndex];
+      const label = cat.charAt(0).toUpperCase() + cat.slice(1);
+      const rotorLabelEl = document.getElementById('__af_sim_rotor_label__');
+      if (rotorLabelEl) {
+        rotorLabelEl.textContent = isVoiceOver ? `Rotor: ${label}` : `Granularity: ${label}`;
+      }
+      playSimEarcon('landmark');
+      if (cat !== 'all') {
+        jumpToCategory(cat);
       }
     }
 
@@ -2637,30 +3060,70 @@
         return;
       }
 
-      // Arrow navigation across ALL narrative elements (headings, text, controls)
+      const isEditing = ['input', 'textarea'].includes(document.activeElement?.tagName?.toLowerCase());
+      if (isEditing && !e.altKey && !e.ctrlKey && !e.metaKey) return;
+
+      // Swipes & Arrow navigation
       if (e.key === 'ArrowRight' || (e.altKey && e.key === 'ArrowRight')) {
-        const isEditing = ['input', 'textarea'].includes(document.activeElement?.tagName?.toLowerCase());
-        if (!isEditing || e.altKey || e.ctrlKey || e.metaKey) {
-          e.preventDefault();
-          moveToIndex(activeIndex + 1);
-        }
+        e.preventDefault();
+        moveToIndex(activeIndex + 1);
         return;
       }
 
       if (e.key === 'ArrowLeft' || (e.altKey && e.key === 'ArrowLeft')) {
-        const isEditing = ['input', 'textarea'].includes(document.activeElement?.tagName?.toLowerCase());
-        if (!isEditing || e.altKey || e.ctrlKey || e.metaKey) {
-          e.preventDefault();
-          moveToIndex(activeIndex - 1);
-        }
+        e.preventDefault();
+        moveToIndex(activeIndex - 1);
         return;
+      }
+
+      // Activation (Space / Enter)
+      if ((e.key === 'Enter' || e.key === ' ') && !isEditing) {
+        e.preventDefault();
+        activateCurrentElement();
+        return;
+      }
+
+      // Rotor (R) or Granularity (G)
+      if ((e.key === 'r' || e.key === 'R') && !isEditing) {
+        e.preventDefault();
+        cycleRotorOrGranularity();
+        return;
+      }
+      if ((e.key === 'g' || e.key === 'G') && !isEditing) {
+        e.preventDefault();
+        cycleRotorOrGranularity();
+        return;
+      }
+
+      // Quick navigation keys
+      if (!isEditing && !e.ctrlKey && !e.metaKey) {
+        const k = e.key.toLowerCase();
+        if (k === 'h') {
+          e.preventDefault();
+          jumpToCategory('heading');
+          return;
+        }
+        if (k === 'l' || k === 'k') {
+          e.preventDefault();
+          jumpToCategory('link');
+          return;
+        }
+        if (k === 'f' || k === 'b') {
+          e.preventDefault();
+          jumpToCategory('control');
+          return;
+        }
+        if (k === 'd') {
+          e.preventDefault();
+          jumpToCategory('landmark');
+          return;
+        }
       }
 
       // Tab navigation between interactive controls
       if (e.key === 'Tab') {
         e.preventDefault();
         if (e.shiftKey) {
-          // Find previous focusable control
           let target = -1;
           for (let i = activeIndex - 1; i >= 0; i--) {
             if (isFocusable(narrative[i].element)) { target = i; break; }
@@ -2672,7 +3135,6 @@
           }
           if (target !== -1) moveToIndex(target, true);
         } else {
-          // Find next focusable control
           let target = -1;
           for (let i = activeIndex + 1; i < narrative.length; i++) {
             if (isFocusable(narrative[i].element)) { target = i; break; }
@@ -2689,7 +3151,6 @@
 
     const onClick = (e) => {
       if (e.target?.closest && e.target.closest('#__auditforge_vo_sim_banner__')) return;
-      // Click on any perceptible element to jump VoiceOver cursor to it
       const matchIdx = narrative.findIndex(it => it.element === e.target || (it.element && it.element.contains(e.target)));
       if (matchIdx !== -1) {
         moveToIndex(matchIdx);
@@ -2708,8 +3169,15 @@
     document.addEventListener('click', onClick, true);
     document.addEventListener('focusin', onFocusIn, true);
 
-    document.getElementById('__af_vo_prev_btn__')?.addEventListener('click', () => moveToIndex(activeIndex - 1));
-    document.getElementById('__af_vo_next_btn__')?.addEventListener('click', () => moveToIndex(activeIndex + 1));
+    // Wire up buttons
+    document.getElementById('__af_sim_swipe_prev__')?.addEventListener('click', () => moveToIndex(activeIndex - 1));
+    document.getElementById('__af_sim_swipe_next__')?.addEventListener('click', () => moveToIndex(activeIndex + 1));
+    document.getElementById('__af_sim_double_tap__')?.addEventListener('click', () => activateCurrentElement());
+    document.getElementById('__af_sim_rotor_btn__')?.addEventListener('click', () => cycleRotorOrGranularity());
+    document.getElementById('__af_sim_quick_h__')?.addEventListener('click', () => jumpToCategory('heading'));
+    document.getElementById('__af_sim_quick_link__')?.addEventListener('click', () => jumpToCategory('link'));
+    document.getElementById('__af_sim_quick_ctrl__')?.addEventListener('click', () => jumpToCategory('control'));
+    document.getElementById('__af_sim_quick_landmark__')?.addEventListener('click', () => jumpToCategory('landmark'));
     document.getElementById('__af_vo_exit_btn__')?.addEventListener('click', () => window.__auditforgeStopVoiceOverSimulator());
 
     window.__auditforgeVoiceOverSimCleanup = () => {
@@ -2719,6 +3187,7 @@
       if (activeHighlightEl && activeHighlightEl.style) {
         activeHighlightEl.style.outline = originalOutline;
         activeHighlightEl.style.outlineOffset = originalOutlineOffset;
+        activeHighlightEl.style.boxShadow = originalBoxShadow;
       }
       banner.remove();
       if ('speechSynthesis' in window) {
@@ -2731,11 +3200,14 @@
       moveToIndex(0);
     }
 
-    return { active: true, totalItems: narrative.length };
+    return { active: true, totalItems: narrative.length, persona: readerConfig.name };
   };
 
+  // Export screen reader simulator aliases
+  window.__auditforgeStartScreenReaderSimulator = window.__auditforgeStartVoiceOverSimulator;
+
   /**
-   * Stops the Interactive In-Page VoiceOver Simulator and restores page DOM.
+   * Stops the Interactive In-Page Screen Reader Simulator and restores page DOM.
    */
   window.__auditforgeStopVoiceOverSimulator = function () {
     if (typeof window.__auditforgeVoiceOverSimCleanup === 'function') {
@@ -2745,6 +3217,7 @@
     document.getElementById('__auditforge_vo_sim_banner__')?.remove();
     return { active: false };
   };
+  window.__auditforgeStopScreenReaderSimulator = window.__auditforgeStopVoiceOverSimulator;
 
   /**
    * Toggles the interactive visual Tab-Trail overlay on the web page.

@@ -10,9 +10,58 @@ let currentAudit = null;
 let currentFilter = 'all';
 let currentTabId = null;
 
-// Screen Reader VoiceOver Speech Engine State
-let currentPersona = 'voiceover'; // 'voiceover' | 'nvda' | 'narrator'
+// Screen Reader Multi-Platform Speech Engine State
+let currentPersona = 'ios-voiceover'; // 'ios-voiceover' | 'android-talkback' | 'nvda' | 'narrator'
+let showCompareMatrix = false;
 let currentRotor = 'all'; // 'all' | 'heading' | 'landmark' | 'link' | 'control'
+
+const PERSONA_CONFIG = {
+  'ios-voiceover': {
+    name: 'iOS VoiceOver',
+    badgeText: 'VOICEOVER CAPTION',
+    formula: '[Name], [State], [Role], [Interaction Hint]',
+    prevLabel: 'Swipe L',
+    nextLabel: 'Swipe R',
+    activateLabel: 'Double-Tap',
+    rotorIcon: '🔄',
+    rotorLabel: 'Rotor Jump',
+    voicePattern: /samantha|daniel|karen|victoria|alex|apple/i,
+  },
+  'android-talkback': {
+    name: 'Android TalkBack',
+    badgeText: 'TALKBACK CAPTION',
+    formula: '[Name], [Role], [State], [Hint]',
+    prevLabel: 'Swipe L',
+    nextLabel: 'Swipe R',
+    activateLabel: 'Double-Tap',
+    rotorIcon: '🔠',
+    rotorLabel: 'Granularity',
+    voicePattern: /google|android/i,
+  },
+  'nvda': {
+    name: 'NVDA',
+    badgeText: 'NVDA CAPTION',
+    formula: '[Role], [Name], [State]',
+    prevLabel: 'Prev [↑]',
+    nextLabel: 'Next [↓]',
+    activateLabel: 'Enter ↵',
+    rotorIcon: '⌨️',
+    rotorLabel: 'Quick [H]',
+    voicePattern: /espeak|david|zira/i,
+  },
+  'narrator': {
+    name: 'Windows Narrator',
+    badgeText: 'NARRATOR CAPTION',
+    formula: '[Name], [Role], [State], [Scan Position]',
+    prevLabel: 'Scan ⬅',
+    nextLabel: 'Scan ➔',
+    activateLabel: 'Enter ↵',
+    rotorIcon: '🪟',
+    rotorLabel: 'Scan [H]',
+    voicePattern: /microsoft|david|mark|zira|george|natural/i,
+  },
+};
+
 let isSpeechPlaying = false;
 let isSpeechPaused = false;
 let speechStepIndex = -1;
@@ -32,6 +81,7 @@ let currentUtteranceId = 0;
 document.addEventListener('DOMContentLoaded', async () => {
   setupModeControls();
   setupEventListeners();
+  updatePersonaUI();
   populateVoiceSelect();
   await restoreSavedAuditOrLoadUrl();
 });
@@ -355,17 +405,83 @@ function setupEventListeners() {
     }
   });
 
-  // Screen Reader Persona Tabs
+  // Screen Reader Persona Tabs (iOS VoiceOver, Android TalkBack, NVDA, Windows Narrator)
   document.querySelectorAll('.sr-persona-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       stopSequentialSpeech();
       document.querySelectorAll('.sr-persona-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      currentPersona = btn.getAttribute('data-persona') || 'voiceover';
-      const personaNames = { voiceover: 'Apple VoiceOver', nvda: 'NVDA / JAWS', narrator: 'Windows Narrator' };
-      updateCaptionDisplay(`Persona switched to ${personaNames[currentPersona] || currentPersona}.`, false);
+      currentPersona = btn.getAttribute('data-persona') || 'ios-voiceover';
+      updatePersonaUI();
+      const cfg = PERSONA_CONFIG[currentPersona] || PERSONA_CONFIG['ios-voiceover'];
+      updateCaptionDisplay(`Emulating ${cfg.name}. Syntax: ${cfg.formula}`, false);
       renderSpeechTimeline(currentAudit?.speechSequence || []);
     });
+  });
+
+  // Emulated gestures & action buttons in popup HUD
+  document.getElementById('btn-emulate-prev')?.addEventListener('click', () => {
+    stepSequentialSpeech(-1);
+  });
+  document.getElementById('btn-emulate-next')?.addEventListener('click', () => {
+    stepSequentialSpeech(1);
+  });
+  document.getElementById('btn-emulate-activate')?.addEventListener('click', async () => {
+    const filtered = getFilteredSpeechSequence();
+    if (!filtered || speechStepIndex < 0 || speechStepIndex >= filtered.length) return;
+    const step = filtered[speechStepIndex];
+    if (!step || !step.selector) return;
+    playEarcon('control', currentPersona);
+    const activeTab = await getActiveWebTab();
+    if (activeTab?.id) {
+      await chrome.scripting.executeScript({
+        target: { tabId: activeTab.id },
+        func: (sel) => {
+          const el = document.querySelector(sel);
+          if (el) {
+            if (el.tagName.toLowerCase() === 'input' && (el.type === 'checkbox' || el.type === 'radio')) {
+              // @ts-ignore
+              el.checked = !el.checked;
+              el.dispatchEvent(new Event('change', { bubbles: true }));
+            } else if (typeof el.click === 'function') {
+              el.click();
+            }
+          }
+        },
+        args: [step.selector],
+      });
+    }
+    updateCaptionDisplay(`⚡ Activated "${step.accessibleName || step.type}"`, false);
+  });
+
+  document.getElementById('btn-emulate-rotor')?.addEventListener('click', () => {
+    const filtered = getFilteredSpeechSequence();
+    if (!filtered || filtered.length === 0) return;
+    let nextIdx = -1;
+    for (let i = speechStepIndex + 1; i < filtered.length; i++) {
+      if (filtered[i].type && filtered[i].type.startsWith('Heading')) { nextIdx = i; break; }
+    }
+    if (nextIdx === -1) {
+      for (let i = 0; i <= speechStepIndex; i++) {
+        if (filtered[i].type && filtered[i].type.startsWith('Heading')) { nextIdx = i; break; }
+      }
+    }
+    if (nextIdx !== -1) {
+      speechStepIndex = nextIdx;
+      speakSingleStep(filtered[nextIdx], nextIdx);
+    } else {
+      stepSequentialSpeech(1);
+    }
+  });
+
+  // Compare All 4 Toggle Button
+  const btnToggleCompare = document.getElementById('btn-toggle-compare');
+  btnToggleCompare?.addEventListener('click', () => {
+    showCompareMatrix = !showCompareMatrix;
+    btnToggleCompare.classList.toggle('active', showCompareMatrix);
+    const labelEl = document.getElementById('sr-compare-label');
+    if (labelEl) labelEl.textContent = showCompareMatrix ? 'Hide Matrix' : 'Compare All 4';
+    renderSpeechTimeline(currentAudit?.speechSequence || []);
   });
 
   // Rotor Navigation Tabs
@@ -778,15 +894,60 @@ function renderScorecard(audit) {
 }
 
 /**
- * Retrieves the announcement string corresponding to the current screen reader persona
+ * Updates the screen reader formula, badges, and controls in the popup
+ */
+function updatePersonaUI() {
+  const cfg = PERSONA_CONFIG[currentPersona] || PERSONA_CONFIG['ios-voiceover'];
+  const formulaEl = document.getElementById('sr-formula-text');
+  const badgeEl = document.getElementById('sr-caption-badge');
+  const prevEl = document.getElementById('sr-label-prev');
+  const nextEl = document.getElementById('sr-label-next');
+  const actEl = document.getElementById('sr-label-activate');
+  const rotorIconEl = document.getElementById('sr-icon-rotor');
+  const rotorLabelEl = document.getElementById('sr-label-rotor');
+
+  if (formulaEl) formulaEl.textContent = cfg.formula;
+  if (badgeEl) badgeEl.textContent = cfg.badgeText;
+  if (prevEl) prevEl.textContent = cfg.prevLabel;
+  if (nextEl) nextEl.textContent = cfg.nextLabel;
+  if (actEl) actEl.textContent = cfg.activateLabel;
+  if (rotorIconEl) rotorIconEl.textContent = cfg.rotorIcon;
+  if (rotorLabelEl) rotorLabelEl.textContent = cfg.rotorLabel;
+
+  // Auto-select best platform voice if available
+  if (availableVoices && availableVoices.length > 0) {
+    const matchedVoice = availableVoices.find(v => cfg.voicePattern.test(v.name));
+    if (matchedVoice) {
+      selectedVoice = matchedVoice;
+      const select = document.getElementById('sr-voice-select');
+      // @ts-ignore
+      if (select) select.value = matchedVoice.name;
+    }
+  }
+}
+
+/**
+ * Retrieves the announcement string corresponding to the specified screen reader persona
+ * 1. iOS VoiceOver: [Name], [State], [Role], [Hint]
+ * 2. Android TalkBack: [Name], [Role], [State], [Hint]
+ * 3. NVDA: [Role], [Name], [State]
+ * 4. Windows Narrator: [Name], [Role], [State], [Scan Position]
  * @param {Object} step
  * @param {string} [persona]
  * @returns {string}
  */
 function getStepAnnouncement(step, persona = currentPersona) {
   if (!step) return '';
-  if (persona === 'nvda' && step.nvdaText) return step.nvdaText;
-  if (persona === 'narrator' && step.narratorText) return step.narratorText;
+  const p = (persona || '').toLowerCase();
+  if (p === 'android-talkback' || p === 'talkback') {
+    return step.talkBackText || step.spokenText || '';
+  }
+  if (p === 'nvda') {
+    return step.nvdaText || step.spokenText || '';
+  }
+  if (p === 'narrator' || p === 'windows-narrator') {
+    return step.narratorText || step.spokenText || '';
+  }
   return step.voiceOverText || step.spokenText || '';
 }
 
@@ -821,6 +982,9 @@ function populateVoiceSelect() {
       opt.textContent = `${v.name} (${v.lang})`;
       select.appendChild(opt);
     });
+
+    // Run persona voice match
+    updatePersonaUI();
   };
 
   loadVoices();
@@ -830,10 +994,11 @@ function populateVoiceSelect() {
 }
 
 /**
- * Generates synthesized earcons (auditory sound cues) using Web Audio API oscillators
+ * Generates synthesized earcons (auditory sound cues) tailored to each screen reader
  * @param {'barrier'|'link'|'landmark'|'control'} type
+ * @param {string} [persona]
  */
-function playEarcon(type) {
+function playEarcon(type, persona = currentPersona) {
   if (!earconsEnabled) return;
   try {
     if (!audioCtx) {
@@ -845,41 +1010,112 @@ function playEarcon(type) {
     if (audioCtx.state === 'suspended') audioCtx.resume();
 
     const now = audioCtx.currentTime;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
+    const norm = (persona || '').toLowerCase();
+    const isTB = norm === 'android-talkback' || norm === 'talkback';
+    const isNV = norm === 'nvda';
+    const isNarr = norm === 'narrator' || norm === 'windows-narrator';
 
-    if (type === 'barrier') {
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(160, now);
-      osc.frequency.exponentialRampToValueAtTime(75, now + 0.16);
-      gain.gain.setValueAtTime(0.08, now);
-      gain.gain.linearRampToValueAtTime(0.001, now + 0.16);
-      osc.start(now);
-      osc.stop(now + 0.16);
-    } else if (type === 'link') {
+    if (isTB) {
+      // Android TalkBack: Resonant bubble bloop (frequency drop)
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(587.33, now);
-      osc.frequency.exponentialRampToValueAtTime(880, now + 0.08);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      if (type === 'barrier') {
+        osc.frequency.setValueAtTime(220, now);
+        osc.frequency.exponentialRampToValueAtTime(110, now + 0.14);
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.linearRampToValueAtTime(0.001, now + 0.14);
+        osc.start(now);
+        osc.stop(now + 0.14);
+      } else {
+        osc.frequency.setValueAtTime(460, now);
+        osc.frequency.exponentialRampToValueAtTime(280, now + 0.09);
+        gain.gain.setValueAtTime(0.06, now);
+        gain.gain.linearRampToValueAtTime(0.001, now + 0.09);
+        osc.start(now);
+        osc.stop(now + 0.09);
+      }
+    } else if (isNV) {
+      // NVDA: Synthesized crisp dual-tone chirp
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'square';
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      if (type === 'barrier') {
+        osc.frequency.setValueAtTime(140, now);
+        gain.gain.setValueAtTime(0.07, now);
+        gain.gain.linearRampToValueAtTime(0.001, now + 0.12);
+        osc.start(now);
+        osc.stop(now + 0.12);
+      } else {
+        osc.frequency.setValueAtTime(440, now);
+        osc.frequency.setValueAtTime(660, now + 0.04);
+        gain.gain.setValueAtTime(0.035, now);
+        gain.gain.linearRampToValueAtTime(0.001, now + 0.08);
+        osc.start(now);
+        osc.stop(now + 0.08);
+      }
+    } else if (isNarr) {
+      // Windows Narrator: Fluent two-tone melodic chime (D5 & A5 soft sine)
+      const osc1 = audioCtx.createOscillator();
+      const osc2 = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc1.type = 'sine';
+      osc2.type = 'sine';
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(audioCtx.destination);
+      if (type === 'barrier') {
+        osc1.frequency.setValueAtTime(180, now);
+        osc2.frequency.setValueAtTime(135, now);
+      } else {
+        osc1.frequency.setValueAtTime(587.33, now);
+        osc2.frequency.setValueAtTime(880, now);
+      }
       gain.gain.setValueAtTime(0.04, now);
-      gain.gain.linearRampToValueAtTime(0.001, now + 0.08);
-      osc.start(now);
-      osc.stop(now + 0.08);
-    } else if (type === 'landmark') {
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(329.63, now);
-      gain.gain.setValueAtTime(0.05, now);
-      gain.gain.linearRampToValueAtTime(0.001, now + 0.12);
-      osc.start(now);
-      osc.stop(now + 0.12);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+      osc1.start(now);
+      osc2.start(now);
+      osc1.stop(now + 0.12);
+      osc2.stop(now + 0.12);
     } else {
+      // iOS VoiceOver: Harmonic crystalline bell chime (E5 & C6 harmonic)
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(440, now);
-      gain.gain.setValueAtTime(0.03, now);
-      gain.gain.linearRampToValueAtTime(0.001, now + 0.05);
-      osc.start(now);
-      osc.stop(now + 0.05);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      if (type === 'barrier') {
+        osc.frequency.setValueAtTime(196, now);
+        osc.frequency.exponentialRampToValueAtTime(110, now + 0.15);
+        gain.gain.setValueAtTime(0.07, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        osc.start(now);
+        osc.stop(now + 0.15);
+      } else if (type === 'link') {
+        osc.frequency.setValueAtTime(659.25, now);
+        osc.frequency.exponentialRampToValueAtTime(987.77, now + 0.08);
+        gain.gain.setValueAtTime(0.05, now);
+        gain.gain.linearRampToValueAtTime(0.001, now + 0.08);
+        osc.start(now);
+        osc.stop(now + 0.08);
+      } else if (type === 'landmark') {
+        osc.frequency.setValueAtTime(523.25, now);
+        gain.gain.setValueAtTime(0.045, now);
+        gain.gain.linearRampToValueAtTime(0.001, now + 0.1);
+        osc.start(now);
+        osc.stop(now + 0.1);
+      } else {
+        osc.frequency.setValueAtTime(523.25, now);
+        osc.frequency.exponentialRampToValueAtTime(783.99, now + 0.07);
+        gain.gain.setValueAtTime(0.045, now);
+        gain.gain.linearRampToValueAtTime(0.001, now + 0.07);
+        osc.start(now);
+        osc.stop(now + 0.07);
+      }
     }
   } catch (_) {}
 }
@@ -1004,13 +1240,13 @@ function speakSingleStep(step, filteredIdx, onComplete = null) {
   updateCaptionDisplay(textToSpeak, true);
 
   if (step.isBarrier) {
-    playEarcon('barrier');
+    playEarcon('barrier', currentPersona);
   } else if (step.type === 'Link') {
-    playEarcon('link');
+    playEarcon('link', currentPersona);
   } else if (step.type === 'Landmark') {
-    playEarcon('landmark');
+    playEarcon('landmark', currentPersona);
   } else {
-    playEarcon('control');
+    playEarcon('control', currentPersona);
   }
 
   highlightTimelineCard(filteredIdx);
@@ -1200,7 +1436,6 @@ function stepSequentialSpeech(direction) {
 
   // Speak the selected step
   speakSingleStep(filtered[speechStepIndex], speechStepIndex, (isSuccess) => {
-    // Only continue auto-play if "Read All" was actively running AND this step finished naturally
     if (isSuccess && isSpeechPlaying && !isSpeechPaused) {
       if (speechStepIndex + 1 < filtered.length) {
         speechPlaybackTimer = setTimeout(advanceAndPlayNext, 450);
@@ -1212,7 +1447,7 @@ function stepSequentialSpeech(direction) {
 }
 
 /**
- * Toggles the In-Page Interactive VoiceOver Simulator on the audited webpage
+ * Toggles the In-Page Interactive Screen Reader Simulator on the audited webpage
  */
 async function toggleOnPageSimulator() {
   const btn = document.getElementById('btn-launch-page-sim');
@@ -1227,9 +1462,10 @@ async function toggleOnPageSimulator() {
   if (isPageSimActive) {
     if (btn) {
       btn.classList.add('active');
-      btn.innerHTML = '<span>⏹</span> Exit Simulator';
+      btn.innerHTML = '<span>⏹</span> Exit On-Page Sim';
     }
-    updateCaptionDisplay('On-Page Simulator active. Press Tab on the page to hear VoiceOver announcements.', true);
+    const cfg = PERSONA_CONFIG[currentPersona] || PERSONA_CONFIG['ios-voiceover'];
+    updateCaptionDisplay(`On-Page ${cfg.name} active. Use Arrow keys / Swipes or HUD on the page.`, true);
     await chrome.scripting.executeScript({
       target: { tabId: targetTab.id },
       files: ['content/audit-runner.js'],
@@ -1248,7 +1484,7 @@ async function toggleOnPageSimulator() {
   } else {
     if (btn) {
       btn.classList.remove('active');
-      btn.innerHTML = '<span>🚀</span> On-Page Simulator';
+      btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> <span>Launch On-Page Sim</span>';
     }
     updateCaptionDisplay('On-Page Simulator exited.', false);
     await chrome.scripting.executeScript({
@@ -1296,6 +1532,34 @@ function renderSpeechTimeline(speechSequence) {
       : '';
     const announcementText = getStepAnnouncement(step);
 
+    let matrixHtml = '';
+    if (showCompareMatrix) {
+      matrixHtml = `
+        <div class="sr-compare-matrix">
+          <div class="sr-matrix-row ${currentPersona === 'ios-voiceover' ? 'is-active-row' : ''}">
+            <span class="sr-matrix-badge sr-badge-vo">🍏 iOS VoiceOver</span>
+            <span class="sr-matrix-text">${escapeHtml(step.voiceOverText || step.spokenText)}</span>
+            <button type="button" class="sr-matrix-speak-btn" data-persona="ios-voiceover" title="Speak VoiceOver version">▶ Listen</button>
+          </div>
+          <div class="sr-matrix-row ${currentPersona === 'android-talkback' ? 'is-active-row' : ''}">
+            <span class="sr-matrix-badge sr-badge-tb">🤖 TalkBack</span>
+            <span class="sr-matrix-text">${escapeHtml(step.talkBackText || step.spokenText)}</span>
+            <button type="button" class="sr-matrix-speak-btn" data-persona="android-talkback" title="Speak TalkBack version">▶ Listen</button>
+          </div>
+          <div class="sr-matrix-row ${currentPersona === 'nvda' ? 'is-active-row' : ''}">
+            <span class="sr-matrix-badge sr-badge-nvda">🖥️ NVDA</span>
+            <span class="sr-matrix-text">${escapeHtml(step.nvdaText || step.spokenText)}</span>
+            <button type="button" class="sr-matrix-speak-btn" data-persona="nvda" title="Speak NVDA version">▶ Listen</button>
+          </div>
+          <div class="sr-matrix-row ${currentPersona === 'narrator' ? 'is-active-row' : ''}">
+            <span class="sr-matrix-badge sr-badge-narrator">🪟 Narrator</span>
+            <span class="sr-matrix-text">${escapeHtml(step.narratorText || step.spokenText)}</span>
+            <button type="button" class="sr-matrix-speak-btn" data-persona="narrator" title="Speak Windows Narrator version">▶ Listen</button>
+          </div>
+        </div>
+      `;
+    }
+
     return `
       <div class="speech-step-card ${barrierClass} highlightable" data-filtered-index="${idx}" title="Click to locate and highlight this element on the page">
         <div class="speech-step-top">
@@ -1320,6 +1584,7 @@ function renderSpeechTimeline(speechSequence) {
           <svg class="bubble-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           <em>${escapeHtml(announcementText)}</em>
         </div>
+        ${matrixHtml}
         <div class="speech-selector">
           ${escapeHtml(step.selector || 'DOM Element')}
         </div>
@@ -1327,7 +1592,7 @@ function renderSpeechTimeline(speechSequence) {
     `;
   }).join('');
 
-  // Attach highlight and speak event listeners to speech step cards
+  // Attach highlight, speak, and matrix audio listeners to speech step cards
   container.querySelectorAll('.speech-step-card').forEach((cardEl) => {
     const idx = parseInt(cardEl.getAttribute('data-filtered-index') || '-1', 10);
     const step = filtered[idx];
@@ -1343,6 +1608,29 @@ function renderSpeechTimeline(speechSequence) {
       updatePlayButtonUI(false);
       speechStepIndex = idx;
       speakSingleStep(step, idx);
+    });
+
+    // Listeners for comparison matrix individual speaker buttons
+    cardEl.querySelectorAll('.sr-matrix-speak-btn').forEach((speakBtn) => {
+      speakBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const persona = speakBtn.getAttribute('data-persona') || currentPersona;
+        const text = getStepAnnouncement(step, persona);
+        updateCaptionDisplay(`[${persona.toUpperCase()}] "${text}"`, true);
+        playEarcon(step.isBarrier ? 'barrier' : (step.type === 'Link' ? 'link' : (step.type === 'Landmark' ? 'landmark' : 'control')), persona);
+        if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.rate = speechRate;
+          const cfg = PERSONA_CONFIG[persona];
+          if (cfg && availableVoices) {
+            const v = availableVoices.find(vx => cfg.voicePattern.test(vx.name));
+            if (v) utterance.voice = v;
+          }
+          utterance.onend = () => updateCaptionDisplay(text, false);
+          window.speechSynthesis.speak(utterance);
+        }
+      });
     });
 
     const triggerHighlight = (btnTarget) => {
@@ -1363,7 +1651,7 @@ function renderSpeechTimeline(speechSequence) {
     });
 
     cardEl.addEventListener('click', (e) => {
-      if (e.target.closest('.btn-speak-speech') || e.target.closest('.btn-highlight-speech')) return;
+      if (e.target.closest('.btn-speak-speech') || e.target.closest('.btn-highlight-speech') || e.target.closest('.sr-matrix-speak-btn')) return;
       triggerHighlight(btnLocate);
     });
   });

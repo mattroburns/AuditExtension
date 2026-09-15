@@ -256,17 +256,44 @@
           <!-- Persona Selector & Simulator Bar -->
           <div class="sr-persona-bar">
             <div class="sr-persona-group">
-              <span class="sr-persona-label">Persona:</span>
+              <span class="sr-persona-label">Emulate:</span>
               <div class="sr-persona-tabs">
-                <button type="button" class="sr-persona-btn active" data-persona="voiceover" title="Apple VoiceOver syntax: [Name], [State], [Role]">VoiceOver (macOS)</button>
-                <button type="button" class="sr-persona-btn" data-persona="nvda" title="NVDA / JAWS syntax: [Role], [Name], [State]">NVDA / JAWS</button>
-                <button type="button" class="sr-persona-btn" data-persona="narrator" title="Windows Narrator syntax">Narrator</button>
+                <button type="button" class="sr-persona-btn active" data-persona="ios-voiceover" title="Apple iOS VoiceOver syntax: [Name], [State], [Role], [Interaction Hint]">🍏 iOS VoiceOver</button>
+                <button type="button" class="sr-persona-btn" data-persona="android-talkback" title="Android TalkBack syntax: [Name], [Role], [State], [Hint] with capitalized roles and granularity">🤖 TalkBack</button>
+                <button type="button" class="sr-persona-btn" data-persona="nvda" title="NVDA syntax: [Role], [Name], [State] with virtual buffer browse mode">🖥️ NVDA</button>
+                <button type="button" class="sr-persona-btn" data-persona="narrator" title="Windows Narrator syntax: [Name], [Role], [State], [Scan Position]">🪟 Narrator</button>
               </div>
             </div>
-            <button type="button" id="btn-launch-page-sim" class="btn-launch-sim" title="Launch interactive keyboard navigation & speech directly on the live webpage">
+            <button type="button" id="btn-launch-page-sim" class="btn-launch-sim" title="Launch interactive screen reader cursor, sound cues & speech directly on the audited webpage">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-              <span>Launch Page Simulator</span>
+              <span>Launch On-Page Sim</span>
             </button>
+          </div>
+
+          <!-- Interactive Emulation HUD & Syntax Formula Bar -->
+          <div class="sr-emulation-hud">
+            <div class="sr-hud-formula">
+              <span class="sr-formula-tag">Syntax Formula:</span>
+              <code id="sr-formula-text" class="sr-formula-code">[Name], [State], [Role], [Hint]</code>
+            </div>
+            <div class="sr-hud-gestures" id="sr-hud-gestures">
+              <button type="button" class="sr-gesture-btn" id="btn-emulate-prev" title="Emulate previous item navigation (Left Swipe / Left Arrow)">
+                <span>⬅</span> <span id="sr-label-prev">Swipe L</span>
+              </button>
+              <button type="button" class="sr-gesture-btn" id="btn-emulate-next" title="Emulate next item navigation (Right Swipe / Right Arrow)">
+                <span id="sr-label-next">Swipe R</span> <span>➔</span>
+              </button>
+              <button type="button" class="sr-gesture-btn sr-btn-activate" id="btn-emulate-activate" title="Emulate activation / tap on current element (Double-Tap / Enter)">
+                <span>👆</span> <span id="sr-label-activate">Double-Tap</span>
+              </button>
+              <button type="button" class="sr-gesture-btn sr-btn-rotor" id="btn-emulate-rotor" title="Emulate Rotor (iOS) or Granularity (Android) or Quick Nav Keys">
+                <span id="sr-icon-rotor">🔄</span> <span id="sr-label-rotor">Rotor Jump</span>
+              </button>
+              <button type="button" id="btn-toggle-compare" class="sr-compare-toggle-btn" title="Toggle side-by-side 4-reader announcement comparison for each element">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                <span id="sr-compare-label">Compare All 4</span>
+              </button>
+            </div>
           </div>
 
           <!-- Speech Synthesis Audio Controls Bar -->
@@ -314,10 +341,10 @@
             </div>
           </div>
 
-          <!-- Live VoiceOver Caption Pill -->
+          <!-- Live Screen Reader Caption Pill -->
           <div id="sr-caption-container" class="sr-caption-container">
             <div class="sr-caption-header">
-              <span class="sr-caption-badge">VOICEOVER CAPTION</span>
+              <span id="sr-caption-badge" class="sr-caption-badge">VOICEOVER CAPTION</span>
               <span id="sr-caption-indicator" class="sr-caption-indicator hidden">● SPEAKING</span>
             </div>
             <div id="sr-caption-text" class="sr-caption-text">

@@ -729,6 +729,214 @@ svg {
   color: #fff;
 }
 
+/* Interactive Emulation HUD & Syntax Formula Bar */
+.sr-emulation-hud {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: #000000;
+  border: 1px solid rgba(27, 111, 126, 0.4);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  flex-wrap: wrap;
+}
+
+.sr-hud-formula {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.sr-formula-tag {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #868180;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sr-formula-code {
+  font-size: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  background: #040809;
+  border: 1px solid rgba(27, 111, 126, 0.35);
+  color: #0D9FBA;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.sr-hud-gestures {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.sr-gesture-btn {
+  background: #080f12;
+  border: 1px solid rgba(27, 111, 126, 0.35);
+  color: var(--text-main);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.sr-gesture-btn:hover {
+  background: #0e191e;
+  border-color: #0D9FBA;
+  color: #0D9FBA;
+  transform: translateY(-1px);
+}
+
+.sr-gesture-btn:active {
+  transform: translateY(0);
+}
+
+.sr-gesture-btn.sr-btn-activate {
+  border-color: rgba(13, 159, 186, 0.5);
+  color: #0D9FBA;
+  background: rgba(13, 159, 186, 0.1);
+}
+
+.sr-gesture-btn.sr-btn-activate:hover {
+  background: #0D9FBA;
+  color: #000000;
+}
+
+.sr-gesture-btn.sr-btn-rotor {
+  border-color: rgba(27, 111, 126, 0.4);
+}
+
+.sr-compare-toggle-btn {
+  background: #080f12;
+  border: 1px solid rgba(27, 111, 126, 0.4);
+  color: #868180;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.sr-compare-toggle-btn:hover {
+  border-color: #0D9FBA;
+  color: #e2ebed;
+}
+
+.sr-compare-toggle-btn.active {
+  background: rgba(27, 111, 126, 0.3);
+  border-color: #0D9FBA;
+  color: #0D9FBA;
+  font-weight: 700;
+}
+
+/* 4-Reader Side-by-Side Comparison Matrix */
+.sr-compare-matrix {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #000000;
+  border: 1px solid rgba(27, 111, 126, 0.3);
+  border-radius: var(--radius-xs);
+  padding: 6px;
+}
+
+.sr-matrix-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  background: #040809;
+  border: 1px solid rgba(27, 111, 126, 0.18);
+  transition: all 0.15s ease;
+}
+
+.sr-matrix-row:hover {
+  background: #080f12;
+  border-color: rgba(27, 111, 126, 0.4);
+}
+
+.sr-matrix-row.is-active-row {
+  border-color: #0D9FBA;
+  background: rgba(13, 159, 186, 0.08);
+}
+
+.sr-matrix-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  width: 125px;
+  flex-shrink: 0;
+}
+
+.sr-badge-vo {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+.sr-badge-tb {
+  background: rgba(13, 159, 186, 0.15);
+  color: #0D9FBA;
+  border: 1px solid rgba(13, 159, 186, 0.3);
+}
+
+.sr-badge-nvda {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.sr-badge-narrator {
+  background: rgba(0, 120, 212, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(0, 120, 212, 0.3);
+}
+
+.sr-matrix-text {
+  font-size: 10px;
+  color: #e2ebed;
+  font-style: italic;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sr-matrix-speak-btn {
+  background: #080f12;
+  border: 1px solid rgba(27, 111, 126, 0.35);
+  color: #868180;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.sr-matrix-speak-btn:hover {
+  background: #0D9FBA;
+  color: #000000;
+  border-color: #0D9FBA;
+}
+
 /* Audio Playback Controls Bar */
 .sr-audio-toolbar {
   display: flex;
