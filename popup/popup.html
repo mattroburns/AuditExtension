@@ -65,39 +65,112 @@
       </form>
     </section>
 
-    <!-- Vision Simulation Suite (Color Blindness & Low Vision) -->
-    <section class="cvd-section">
-      <div class="cvd-container">
-        <!-- Color Blindness -->
-        <div class="cvd-row">
-          <div class="cvd-title-group">
-            <span class="cvd-icon">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
-            </span>
-            <span class="cvd-title">Color Blindness:</span>
-          </div>
-          <div class="cvd-pills" id="cvd-pills">
-            <button type="button" class="cvd-pill active" data-cvd="none" title="Normal visual spectrum">Normal</button>
-            <button type="button" class="cvd-pill" data-cvd="protanopia" title="Protanopia: Red-blind / Red-weak simulation (~1.3% males)">Protanopia</button>
-            <button type="button" class="cvd-pill" data-cvd="deuteranopia" title="Deuteranopia: Green-blind / Green-weak simulation (~5% males, most common)">Deuteranopia</button>
-            <button type="button" class="cvd-pill" data-cvd="tritanopia" title="Tritanopia: Blue/Yellow-blind simulation (rare)">Tritanopia</button>
-            <button type="button" class="cvd-pill" data-cvd="achromatopsia" title="Achromatopsia: Monochromacy / Complete color blindness">Monochrome</button>
+    <!-- Vision Simulation Suite (Color Blindness & Low Vision Drawer) -->
+    <section class="cvd-section" id="section-cvd">
+      <div class="cvd-header" id="cvd-header-toggle">
+        <div class="cvd-header-title">
+          <span class="cvd-header-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+          </span>
+          <div>
+            <h3 class="cvd-heading">Vision & Color Deficiency Simulation</h3>
+            <p class="cvd-subheading">Live simulation of 9 color blindness & low vision conditions</p>
           </div>
         </div>
+        <div class="cvd-badge-group">
+          <span id="cvd-status-badge" class="cvd-status-badge">Normal Spectrum</span>
+          <button type="button" id="cvd-toggle-btn" class="cvd-toggle-btn">▼ Open Lenses</button>
+        </div>
+      </div>
 
-        <!-- Low Vision & Eye Conditions -->
-        <div class="cvd-row cvd-row-lowvision">
-          <div class="cvd-title-group">
-            <span class="cvd-icon lowvision-icon">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-            </span>
-            <span class="cvd-title">Low Vision:</span>
+      <div id="cvd-panel-body" class="cvd-panel-body hidden">
+        <div class="cvd-container">
+          <!-- Color Blindness -->
+          <div class="cvd-row">
+            <div class="cvd-title-group">
+              <span class="cvd-icon">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+              </span>
+              <span class="cvd-title">Color Blindness:</span>
+            </div>
+            <div class="cvd-pills" id="cvd-pills">
+              <button type="button" class="cvd-pill active" data-cvd="none" title="Normal visual spectrum">Normal</button>
+              <button type="button" class="cvd-pill" data-cvd="protanopia" title="Protanopia: Red-blind / Red-weak simulation (~1.3% males)">Protanopia</button>
+              <button type="button" class="cvd-pill" data-cvd="deuteranopia" title="Deuteranopia: Green-blind / Green-weak simulation (~5% males, most common)">Deuteranopia</button>
+              <button type="button" class="cvd-pill" data-cvd="tritanopia" title="Tritanopia: Blue/Yellow-blind simulation (rare)">Tritanopia</button>
+              <button type="button" class="cvd-pill" data-cvd="achromatopsia" title="Achromatopsia: Monochromacy / Complete color blindness">Monochrome</button>
+            </div>
           </div>
-          <div class="cvd-pills">
-            <button type="button" class="cvd-pill" data-cvd="cataracts" title="Cataracts: Acuity loss, cloudy lens, and contrast wash">Cataracts (Blur)</button>
-            <button type="button" class="cvd-pill" data-cvd="glaucoma" title="Glaucoma: Severe peripheral vision loss (Tunnel Vision)">Glaucoma (Tunnel)</button>
-            <button type="button" class="cvd-pill" data-cvd="macular" title="Macular Degeneration: Central vision loss / Scotoma">Macular (Central)</button>
-            <button type="button" class="cvd-pill" data-cvd="photophobia" title="Photophobia: Extreme glare sensitivity (Inverted High Contrast)">Photophobia</button>
+
+          <!-- Low Vision & Eye Conditions -->
+          <div class="cvd-row cvd-row-lowvision">
+            <div class="cvd-title-group">
+              <span class="cvd-icon lowvision-icon">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+              </span>
+              <span class="cvd-title">Low Vision:</span>
+            </div>
+            <div class="cvd-pills">
+              <button type="button" class="cvd-pill" data-cvd="cataracts" title="Cataracts: Acuity loss, cloudy lens, and contrast wash">Cataracts (Blur)</button>
+              <button type="button" class="cvd-pill" data-cvd="glaucoma" title="Glaucoma: Severe peripheral vision loss (Tunnel Vision)">Glaucoma (Tunnel)</button>
+              <button type="button" class="cvd-pill" data-cvd="macular" title="Macular Degeneration: Central vision loss / Scotoma">Macular (Central)</button>
+              <button type="button" class="cvd-pill" data-cvd="photophobia" title="Photophobia: Extreme glare sensitivity (Inverted High Contrast)">Photophobia</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Welcome / Empty State View (Visible before audit is run) -->
+    <section id="welcome-view" class="welcome-view">
+      <div class="welcome-card">
+        <div class="welcome-badge">
+          <span class="pulse-dot"></span>
+          <span>READY TO AUDIT</span>
+        </div>
+        <h2 class="welcome-title">Full-Stack Accessibility & Quality Suite</h2>
+        <p class="welcome-desc">
+          Evaluate your web page against WCAG 2.2 Level AA guidelines, test multi-platform screen reader speech synthesizers, inspect keyboard tab flow, and verify link health.
+        </p>
+
+        <div class="welcome-target-box">
+          <span class="welcome-target-label">Target Page:</span>
+          <span id="welcome-url-text" class="welcome-url-text">Detecting active browser tab...</span>
+        </div>
+
+        <button type="button" id="btn-welcome-scan" class="btn btn-welcome-scan">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          <span>Run Complete Audit</span>
+        </button>
+
+        <div class="welcome-features-grid">
+          <div class="welcome-feature-card">
+            <span class="wf-badge-icon">🛡️</span>
+            <div>
+              <strong>WCAG 2.2 AA Rules</strong>
+              <p>Automated axe-core, target size, text contrast & ARIA semantics</p>
+            </div>
+          </div>
+          <div class="welcome-feature-card">
+            <span class="wf-badge-icon">🔗</span>
+            <div>
+              <strong>Link Health Auditor</strong>
+              <p>Live HTTP status checks, 404 detection & anchor targets</p>
+            </div>
+          </div>
+          <div class="welcome-feature-card">
+            <span class="wf-badge-icon">⌨️</span>
+            <div>
+              <strong>Keyboard Tab Trail</strong>
+              <p>Visual reading flow analysis & in-page sequential overlay map</p>
+            </div>
+          </div>
+          <div class="welcome-feature-card">
+            <span class="wf-badge-icon">🔊</span>
+            <div>
+              <strong>4 Screen Readers</strong>
+              <p>VoiceOver, TalkBack, NVDA & Narrator speech simulation</p>
+            </div>
           </div>
         </div>
       </div>
@@ -219,8 +292,213 @@
         </div>
       </section>
 
-      <!-- Screen Reader & VoiceOver Simulation Drawer -->
-      <section class="screen-reader-section">
+      <!-- Executive Quick-Jump Health Bar -->
+      <nav class="sections-quickbar" aria-label="Audit sections navigation">
+        <div class="quickbar-nav">
+          <span class="quickbar-label">SECTIONS:</span>
+          <div class="quickbar-pills">
+            <button type="button" class="quick-pill" data-target="section-issues" id="qp-issues" title="Jump to WCAG Issues Table">
+              <span class="qp-icon">🔴</span>
+              <span class="qp-text">Issues</span>
+              <span class="qp-badge" id="qp-issues-count">0</span>
+            </button>
+            <button type="button" class="quick-pill" data-target="section-links" id="qp-links" title="Jump to Link Health Checker">
+              <span class="qp-icon">🔗</span>
+              <span class="qp-text">Links</span>
+              <span class="qp-badge" id="qp-links-count">0</span>
+            </button>
+            <button type="button" class="quick-pill" data-target="section-tabs" id="qp-tabs" title="Jump to Tab Navigation Order">
+              <span class="qp-icon">⌨️</span>
+              <span class="qp-text">Tab Order</span>
+              <span class="qp-badge" id="qp-tabs-count">0</span>
+            </button>
+            <button type="button" class="quick-pill" data-target="section-sr" id="qp-sr" title="Jump to Screen Reader Speech Simulator">
+              <span class="qp-icon">🔊</span>
+              <span class="qp-text">VoiceOver</span>
+              <span class="qp-badge" id="qp-sr-score">--</span>
+            </button>
+            <button type="button" class="quick-pill" data-target="section-cvd" id="qp-cvd" title="Jump to Vision Simulation Drawer">
+              <span class="qp-icon">👁️</span>
+              <span class="qp-text">Vision</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="quickbar-actions">
+          <button type="button" id="btn-expand-all" class="btn-drawer-bulk" title="Expand all collapsible sections">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="7 13 12 18 17 13"/><polyline points="7 6 12 11 17 6"/></svg>
+            <span>Expand All</span>
+          </button>
+          <button type="button" id="btn-collapse-all" class="btn-drawer-bulk" title="Collapse all sections">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg>
+            <span>Collapse All</span>
+          </button>
+        </div>
+      </nav>
+
+      <!-- 1. WCAG Issues Table & Technical Fixes Drawer -->
+      <section class="issues-section" id="section-issues">
+        <div class="issues-header" id="issues-header-toggle">
+          <div class="issues-header-title">
+            <span class="issues-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </span>
+            <div>
+              <h3 class="issues-title">WCAG 2.2 Issues Table & Technical Fixes</h3>
+              <p class="issues-subtitle">Inspect exact CSS selectors, offending HTML, contrast calculations, and code fixes</p>
+            </div>
+          </div>
+          <div class="issues-badge-group">
+            <span id="issues-status-badge" class="issues-status-badge">-- Issues</span>
+            <button type="button" id="issues-toggle-btn" class="issues-toggle-btn">▲ Hide Issues</button>
+          </div>
+        </div>
+
+        <div id="issues-panel-body" class="issues-panel-body">
+          <!-- Severity Filter Tabs Bar -->
+          <div class="issues-filter-bar">
+            <span class="issues-filter-label">Filter Severity:</span>
+            <div class="filter-tabs">
+              <button type="button" class="filter-btn active" data-filter="all">All (<span id="tab-count-all">0</span>)</button>
+              <button type="button" class="filter-btn filter-crit" data-filter="critical">Critical (<span id="tab-count-crit">0</span>)</button>
+              <button type="button" class="filter-btn filter-ser" data-filter="serious">Serious (<span id="tab-count-ser">0</span>)</button>
+              <button type="button" class="filter-btn filter-mod" data-filter="moderate">Moderate (<span id="tab-count-mod">0</span>)</button>
+            </div>
+          </div>
+
+          <!-- Issues List Accordion -->
+          <div id="issues-list" class="issues-list">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. Link Health & Broken Link Checker Drawer -->
+      <section class="link-checker-section" id="section-links">
+        <div class="link-checker-header" id="link-checker-header-toggle">
+          <div class="link-checker-header-title">
+            <span class="link-checker-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            </span>
+            <div>
+              <h3 class="link-checker-title">Link Health & Broken Link Checker</h3>
+              <p class="link-checker-subtitle">HTTP response audit, 404 detection, broken anchor verification & in-page link spotlight</p>
+            </div>
+          </div>
+          <div class="link-checker-badge-group">
+            <span id="link-checker-status-badge" class="link-checker-status-badge">-- Links</span>
+            <button type="button" id="link-checker-toggle-btn" class="link-checker-toggle-btn">▼ View Links</button>
+          </div>
+        </div>
+
+        <div id="link-checker-panel-body" class="link-checker-panel-body hidden">
+          <div class="link-checker-summary-strip">
+            <div class="link-checker-strip-item">
+              <span class="link-checker-strip-label">Total Links:</span>
+              <strong id="link-total-count" class="link-val">0</strong>
+            </div>
+            <div class="link-checker-strip-item">
+              <span class="link-checker-strip-label">Broken (404/5xx):</span>
+              <strong id="link-broken-count" class="link-val link-val-broken">0</strong>
+            </div>
+            <div class="link-checker-strip-item">
+              <span class="link-checker-strip-label">Warnings:</span>
+              <strong id="link-warning-count" class="link-val link-val-warning">0</strong>
+            </div>
+            <div class="link-checker-strip-item">
+              <span class="link-checker-strip-label">Working:</span>
+              <strong id="link-working-count" class="link-val link-val-working">0</strong>
+            </div>
+          </div>
+
+          <!-- Actions & Live Progress Bar -->
+          <div class="link-checker-actions-bar">
+            <div class="link-progress-wrapper" id="link-progress-wrapper">
+              <div class="link-progress-bar-track">
+                <div id="link-progress-bar-fill" class="link-progress-bar-fill" style="width: 0%;"></div>
+              </div>
+              <span id="link-progress-label" class="link-progress-label">Ready to check</span>
+            </div>
+            <button type="button" id="btn-recheck-links" class="btn-recheck-links" title="Re-check HTTP response status for all links on this page">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              <span>Re-Check Links</span>
+            </button>
+          </div>
+
+          <!-- Filter Navigation Tabs -->
+          <div class="link-filter-nav">
+            <span class="link-filter-label">Filter:</span>
+            <div class="link-filter-tabs">
+              <button type="button" class="link-filter-btn active" data-link-filter="all">All (<span id="link-count-all">0</span>)</button>
+              <button type="button" class="link-filter-btn filter-btn-broken" data-link-filter="broken">Broken (<span id="link-count-broken">0</span>)</button>
+              <button type="button" class="link-filter-btn filter-btn-warning" data-link-filter="warning">Warnings (<span id="link-count-warning">0</span>)</button>
+              <button type="button" class="link-filter-btn filter-btn-working" data-link-filter="working">Working (<span id="link-count-working">0</span>)</button>
+            </div>
+          </div>
+
+          <!-- Link Results List -->
+          <div id="link-sequence-list" class="link-sequence-list">
+            <!-- Dynamically populated link cards -->
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. Tab Order & Keyboard Navigation Drawer -->
+      <section class="tab-order-section" id="section-tabs">
+        <div class="tab-order-header" id="tab-order-header-toggle">
+          <div class="tab-order-header-title">
+            <span class="tab-order-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </span>
+            <div>
+              <h3 class="tab-order-title">Tab Navigation Order & Focus Trail</h3>
+              <p class="tab-order-subtitle">Sequential keyboard tab order audit, visual reading flow & in-page trail overlay</p>
+            </div>
+          </div>
+          <div class="tab-order-badge-group">
+            <span id="tab-order-status-badge" class="tab-order-status-badge">-- Controls</span>
+            <button type="button" id="tab-order-toggle-btn" class="tab-order-toggle-btn">▼ View Sequence</button>
+          </div>
+        </div>
+
+        <div id="tab-order-panel-body" class="tab-order-panel-body hidden">
+          <div class="tab-order-summary-strip">
+            <div class="tab-order-strip-item">
+              <span class="tab-order-strip-label">Focusable Items:</span>
+              <strong id="tab-total-count" class="tab-val">0</strong>
+            </div>
+            <div class="tab-order-strip-item">
+              <span class="tab-order-strip-label">Tab Flow:</span>
+              <strong id="tab-flow-status" class="tab-status-val">Sequential</strong>
+            </div>
+            <div class="tab-order-strip-item">
+              <span class="tab-order-strip-label">Positive TabIndex:</span>
+              <strong id="tab-positive-count" class="tab-positive-val">0</strong>
+            </div>
+            <div class="tab-order-strip-item">
+              <span class="tab-order-strip-label">Skip Link:</span>
+              <strong id="tab-skip-status" class="tab-status-val">Verified</strong>
+            </div>
+          </div>
+
+          <!-- Action Bar -->
+          <div class="tab-order-actions-bar">
+            <button type="button" id="btn-toggle-tab-trail" class="btn-tab-trail">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+              <span id="tab-trail-btn-label">🗺️ Show Tab-Trail Overlay</span>
+            </button>
+            <span class="tab-trail-hint">Overlays numbered badges (#1, #2, #3...) and connecting paths directly on the active webpage.</span>
+          </div>
+
+          <!-- Tab Sequence List -->
+          <div id="tab-sequence-list" class="tab-sequence-list">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. Screen Reader & VoiceOver Simulation Drawer -->
+      <section class="screen-reader-section" id="section-sr">
         <div class="sr-header" id="sr-header-toggle">
           <div class="sr-header-title">
             <span class="sr-icon">
@@ -368,153 +646,6 @@
           <div id="speech-timeline" class="speech-timeline">
             <!-- Dynamically populated speech steps -->
           </div>
-        </div>
-      </section>
-
-      <!-- Tab Order & Keyboard Navigation Drawer -->
-      <section class="tab-order-section">
-        <div class="tab-order-header" id="tab-order-header-toggle">
-          <div class="tab-order-header-title">
-            <span class="tab-order-icon">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            </span>
-            <div>
-              <h3 class="tab-order-title">Tab Navigation Order & Focus Trail</h3>
-              <p class="tab-order-subtitle">Sequential keyboard tab order audit, visual reading flow & in-page trail overlay</p>
-            </div>
-          </div>
-          <div class="tab-order-badge-group">
-            <span id="tab-order-status-badge" class="tab-order-status-badge">-- Controls</span>
-            <button type="button" id="tab-order-toggle-btn" class="tab-order-toggle-btn">▼ View Sequence</button>
-          </div>
-        </div>
-
-        <div id="tab-order-panel-body" class="tab-order-panel-body hidden">
-          <div class="tab-order-summary-strip">
-            <div class="tab-order-strip-item">
-              <span class="tab-order-strip-label">Focusable Items:</span>
-              <strong id="tab-total-count" class="tab-val">0</strong>
-            </div>
-            <div class="tab-order-strip-item">
-              <span class="tab-order-strip-label">Tab Flow:</span>
-              <strong id="tab-flow-status" class="tab-status-val">Sequential</strong>
-            </div>
-            <div class="tab-order-strip-item">
-              <span class="tab-order-strip-label">Positive TabIndex:</span>
-              <strong id="tab-positive-count" class="tab-positive-val">0</strong>
-            </div>
-            <div class="tab-order-strip-item">
-              <span class="tab-order-strip-label">Skip Link:</span>
-              <strong id="tab-skip-status" class="tab-status-val">Verified</strong>
-            </div>
-          </div>
-
-          <!-- Action Bar -->
-          <div class="tab-order-actions-bar">
-            <button type="button" id="btn-toggle-tab-trail" class="btn-tab-trail">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
-              <span id="tab-trail-btn-label">🗺️ Show Tab-Trail Overlay</span>
-            </button>
-            <span class="tab-trail-hint">Overlays numbered badges (#1, #2, #3...) and connecting paths directly on the active webpage.</span>
-          </div>
-
-          <!-- Tab Sequence List -->
-          <div id="tab-sequence-list" class="tab-sequence-list">
-            <!-- Dynamically populated -->
-          </div>
-        </div>
-      </section>
-
-      <!-- Link Health & Broken Link Checker Drawer -->
-      <section class="link-checker-section">
-        <div class="link-checker-header" id="link-checker-header-toggle">
-          <div class="link-checker-header-title">
-            <span class="link-checker-icon">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-            </span>
-            <div>
-              <h3 class="link-checker-title">Link Health & Broken Link Checker</h3>
-              <p class="link-checker-subtitle">HTTP response audit, 404 detection, broken anchor verification & in-page link spotlight</p>
-            </div>
-          </div>
-          <div class="link-checker-badge-group">
-            <span id="link-checker-status-badge" class="link-checker-status-badge">-- Links</span>
-            <button type="button" id="link-checker-toggle-btn" class="link-checker-toggle-btn">▼ View Links</button>
-          </div>
-        </div>
-
-        <div id="link-checker-panel-body" class="link-checker-panel-body hidden">
-          <div class="link-checker-summary-strip">
-            <div class="link-checker-strip-item">
-              <span class="link-checker-strip-label">Total Links:</span>
-              <strong id="link-total-count" class="link-val">0</strong>
-            </div>
-            <div class="link-checker-strip-item">
-              <span class="link-checker-strip-label">Broken (404/5xx):</span>
-              <strong id="link-broken-count" class="link-val link-val-broken">0</strong>
-            </div>
-            <div class="link-checker-strip-item">
-              <span class="link-checker-strip-label">Warnings:</span>
-              <strong id="link-warning-count" class="link-val link-val-warning">0</strong>
-            </div>
-            <div class="link-checker-strip-item">
-              <span class="link-checker-strip-label">Working:</span>
-              <strong id="link-working-count" class="link-val link-val-working">0</strong>
-            </div>
-          </div>
-
-          <!-- Actions & Live Progress Bar -->
-          <div class="link-checker-actions-bar">
-            <div class="link-progress-wrapper" id="link-progress-wrapper">
-              <div class="link-progress-bar-track">
-                <div id="link-progress-bar-fill" class="link-progress-bar-fill" style="width: 0%;"></div>
-              </div>
-              <span id="link-progress-label" class="link-progress-label">Ready to check</span>
-            </div>
-            <button type="button" id="btn-recheck-links" class="btn-recheck-links" title="Re-check HTTP response status for all links on this page">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-              <span>Re-Check Links</span>
-            </button>
-          </div>
-
-          <!-- Filter Navigation Tabs -->
-          <div class="link-filter-nav">
-            <span class="link-filter-label">Filter:</span>
-            <div class="link-filter-tabs">
-              <button type="button" class="link-filter-btn active" data-link-filter="all">All (<span id="link-count-all">0</span>)</button>
-              <button type="button" class="link-filter-btn filter-btn-broken" data-link-filter="broken">Broken (<span id="link-count-broken">0</span>)</button>
-              <button type="button" class="link-filter-btn filter-btn-warning" data-link-filter="warning">Warnings (<span id="link-count-warning">0</span>)</button>
-              <button type="button" class="link-filter-btn filter-btn-working" data-link-filter="working">Working (<span id="link-count-working">0</span>)</button>
-            </div>
-          </div>
-
-          <!-- Link Results List -->
-          <div id="link-sequence-list" class="link-sequence-list">
-            <!-- Dynamically populated link cards -->
-          </div>
-        </div>
-      </section>
-
-      <!-- Issues Table & Detailed Findings -->
-      <section class="issues-section">
-        <div class="issues-header">
-          <div>
-            <h3 class="issues-title">WCAG Issues Table & Technical Fixes</h3>
-            <p class="issues-subtitle">Inspect exact CSS selectors, offending HTML, contrast calculations, and code fixes</p>
-          </div>
-
-          <!-- Severity Filter Tabs -->
-          <div class="filter-tabs">
-            <button class="filter-btn active" data-filter="all">All (<span id="tab-count-all">0</span>)</button>
-            <button class="filter-btn filter-crit" data-filter="critical">Critical (<span id="tab-count-crit">0</span>)</button>
-            <button class="filter-btn filter-ser" data-filter="serious">Serious (<span id="tab-count-ser">0</span>)</button>
-            <button class="filter-btn filter-mod" data-filter="moderate">Moderate (<span id="tab-count-mod">0</span>)</button>
-          </div>
-        </div>
-
-        <!-- Issues List Accordion -->
-        <div id="issues-list" class="issues-list">
-          <!-- Dynamically populated -->
         </div>
       </section>
 

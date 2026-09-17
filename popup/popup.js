@@ -96,6 +96,37 @@ window.addEventListener('beforeunload', () => {
 });
 
 /**
+ * View state management helpers
+ */
+function showWelcomeView() {
+  document.getElementById('welcome-view')?.classList.remove('hidden');
+  document.getElementById('results-view')?.classList.add('hidden');
+  document.getElementById('scan-progress')?.classList.add('hidden');
+  document.getElementById('error-view')?.classList.add('hidden');
+}
+
+function showProgressView() {
+  document.getElementById('welcome-view')?.classList.add('hidden');
+  document.getElementById('results-view')?.classList.add('hidden');
+  document.getElementById('scan-progress')?.classList.remove('hidden');
+  document.getElementById('error-view')?.classList.add('hidden');
+}
+
+function showResultsView() {
+  document.getElementById('welcome-view')?.classList.add('hidden');
+  document.getElementById('scan-progress')?.classList.add('hidden');
+  document.getElementById('error-view')?.classList.add('hidden');
+  document.getElementById('results-view')?.classList.remove('hidden');
+}
+
+function showErrorView() {
+  document.getElementById('welcome-view')?.classList.add('hidden');
+  document.getElementById('scan-progress')?.classList.add('hidden');
+  document.getElementById('results-view')?.classList.add('hidden');
+  document.getElementById('error-view')?.classList.remove('hidden');
+}
+
+/**
  * Initializes floating window and side panel dock controls
  */
 function setupModeControls() {
@@ -156,12 +187,15 @@ function setupModeControls() {
             inputUrl.value = tabUrl;
           }
 
+          const welcomeUrlEl = document.getElementById('welcome-url-text');
+          if (welcomeUrlEl) welcomeUrlEl.textContent = tabUrl;
+
           // If an audit was loaded, show results only if it matches this tab's URL
           if (currentAudit) {
             if (urlsMatch(tabUrl, currentAudit.url)) {
-              document.getElementById('results-view')?.classList.remove('hidden');
+              showResultsView();
             } else {
-              document.getElementById('results-view')?.classList.add('hidden');
+              showWelcomeView();
             }
           }
         } else if (tab && (!tabUrl || !isValidWebUrl(tabUrl))) {
@@ -169,7 +203,7 @@ function setupModeControls() {
             // @ts-ignore
             inputUrl.value = '';
           }
-          document.getElementById('results-view')?.classList.add('hidden');
+          showWelcomeView();
         }
       } catch (_) {}
     });
@@ -185,11 +219,14 @@ function setupModeControls() {
             // @ts-ignore
             inputUrl.value = tabUrl;
           }
+          const welcomeUrlEl = document.getElementById('welcome-url-text');
+          if (welcomeUrlEl) welcomeUrlEl.textContent = tabUrl;
+
           if (currentAudit) {
             if (urlsMatch(tabUrl, currentAudit.url)) {
-              document.getElementById('results-view')?.classList.remove('hidden');
+              showResultsView();
             } else {
-              document.getElementById('results-view')?.classList.add('hidden');
+              showWelcomeView();
             }
           }
         } else {
@@ -197,7 +234,7 @@ function setupModeControls() {
             // @ts-ignore
             inputUrl.value = '';
           }
-          document.getElementById('results-view')?.classList.add('hidden');
+          showWelcomeView();
         }
       }
     });
@@ -298,6 +335,11 @@ async function restoreSavedAuditOrLoadUrl() {
     inputUrl.value = activeUrl || '';
   }
 
+  const welcomeUrlEl = document.getElementById('welcome-url-text');
+  if (welcomeUrlEl) {
+    welcomeUrlEl.textContent = activeUrl || 'Detecting active browser tab...';
+  }
+
   // If there's a saved audit, check if it matches the current page URL
   try {
     const storageArea = chrome.storage?.session || chrome.storage?.local;
@@ -314,20 +356,17 @@ async function restoreSavedAuditOrLoadUrl() {
         renderScorecard(currentAudit);
         renderIssuesList();
 
-        document.getElementById('results-view')?.classList.remove('hidden');
-        document.getElementById('scan-progress')?.classList.add('hidden');
-        document.getElementById('error-view')?.classList.add('hidden');
+        showResultsView();
         return;
       } else {
         // Different page or new tab: clear stale audit view so fresh page is ready to audit
         currentAudit = null;
-        document.getElementById('results-view')?.classList.add('hidden');
-        document.getElementById('scan-progress')?.classList.add('hidden');
-        document.getElementById('error-view')?.classList.add('hidden');
+        showWelcomeView();
       }
     }
   } catch (err) {
     console.warn('[Auditor] Could not restore saved audit:', err);
+    showWelcomeView();
   }
 }
 
@@ -356,6 +395,144 @@ function setupEventListeners() {
     // @ts-ignore
     const url = document.getElementById('input-url')?.value.trim();
     if (url) runAudit(url);
+  });
+
+  // Welcome State Quick-Scan CTA Button
+  document.getElementById('btn-welcome-scan')?.addEventListener('click', () => {
+    // @ts-ignore
+    const url = document.getElementById('input-url')?.value.trim();
+    if (url) runAudit(url);
+  });
+
+  // Vision Simulation Suite Collapsible Drawer Toggle
+  const cvdHeader = document.getElementById('cvd-header-toggle');
+  const cvdToggleBtn = document.getElementById('cvd-toggle-btn');
+  const cvdBody = document.getElementById('cvd-panel-body');
+
+  const toggleCvdPanel = () => {
+    if (!cvdBody) return;
+    const isHidden = cvdBody.classList.toggle('hidden');
+    if (cvdToggleBtn) {
+      cvdToggleBtn.textContent = isHidden ? '▼ Open Lenses' : '▲ Close Lenses';
+    }
+  };
+
+  cvdHeader?.addEventListener('click', () => {
+    toggleCvdPanel();
+  });
+  cvdToggleBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleCvdPanel();
+  });
+
+  // WCAG Issues Table Collapsible Drawer Toggle
+  const issuesHeader = document.getElementById('issues-header-toggle');
+  const issuesToggleBtn = document.getElementById('issues-toggle-btn');
+  const issuesBody = document.getElementById('issues-panel-body');
+
+  const toggleIssuesPanel = () => {
+    if (!issuesBody) return;
+    const isHidden = issuesBody.classList.toggle('hidden');
+    if (issuesToggleBtn) {
+      issuesToggleBtn.textContent = isHidden ? '▼ View Issues' : '▲ Hide Issues';
+    }
+  };
+
+  issuesHeader?.addEventListener('click', () => {
+    toggleIssuesPanel();
+  });
+  issuesToggleBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleIssuesPanel();
+  });
+
+  // Executive Quick-Jump Navigation Pills
+  document.querySelectorAll('.quick-pill').forEach((pill) => {
+    pill.addEventListener('click', () => {
+      const targetId = pill.getAttribute('data-target');
+      if (!targetId) return;
+      const targetSec = document.getElementById(targetId);
+      if (!targetSec) return;
+
+      // Automatically expand target drawer if currently collapsed
+      if (targetId === 'section-issues') {
+        const b = document.getElementById('issues-panel-body');
+        if (b && b.classList.contains('hidden')) {
+          b.classList.remove('hidden');
+          const t = document.getElementById('issues-toggle-btn');
+          if (t) t.textContent = '▲ Hide Issues';
+        }
+      } else if (targetId === 'section-links') {
+        const b = document.getElementById('link-checker-panel-body');
+        if (b && b.classList.contains('hidden')) {
+          b.classList.remove('hidden');
+          const t = document.getElementById('link-checker-toggle-btn');
+          if (t) t.textContent = '▲ Hide Links';
+        }
+      } else if (targetId === 'section-tabs') {
+        const b = document.getElementById('tab-order-panel-body');
+        if (b && b.classList.contains('hidden')) {
+          b.classList.remove('hidden');
+          const t = document.getElementById('tab-order-toggle-btn');
+          if (t) t.textContent = '▲ Hide Sequence';
+        }
+      } else if (targetId === 'section-sr') {
+        const b = document.getElementById('sr-panel-body');
+        if (b && b.classList.contains('hidden')) {
+          b.classList.remove('hidden');
+          const t = document.getElementById('sr-toggle-btn');
+          if (t) t.textContent = '▲ Hide Readout';
+        }
+      } else if (targetId === 'section-cvd') {
+        const b = document.getElementById('cvd-panel-body');
+        if (b && b.classList.contains('hidden')) {
+          b.classList.remove('hidden');
+          const t = document.getElementById('cvd-toggle-btn');
+          if (t) t.textContent = '▲ Close Lenses';
+        }
+      }
+
+      // Smooth scroll to section
+      targetSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+      // Pulse highlight animation
+      targetSec.classList.remove('section-pulse');
+      void targetSec.offsetWidth; // Force reflow
+      targetSec.classList.add('section-pulse');
+      setTimeout(() => targetSec.classList.remove('section-pulse'), 1400);
+    });
+  });
+
+  // Bulk Drawer Controls: Expand All / Collapse All
+  document.getElementById('btn-expand-all')?.addEventListener('click', () => {
+    const bodies = [
+      { id: 'issues-panel-body', btn: 'issues-toggle-btn', text: '▲ Hide Issues' },
+      { id: 'link-checker-panel-body', btn: 'link-checker-toggle-btn', text: '▲ Hide Links' },
+      { id: 'tab-order-panel-body', btn: 'tab-order-toggle-btn', text: '▲ Hide Sequence' },
+      { id: 'sr-panel-body', btn: 'sr-toggle-btn', text: '▲ Hide Readout' },
+    ];
+    bodies.forEach(({ id, btn, text }) => {
+      const el = document.getElementById(id);
+      if (el) el.classList.remove('hidden');
+      const b = document.getElementById(btn);
+      if (b) b.textContent = text;
+    });
+  });
+
+  document.getElementById('btn-collapse-all')?.addEventListener('click', () => {
+    const bodies = [
+      { id: 'issues-panel-body', btn: 'issues-toggle-btn', text: '▼ View Issues' },
+      { id: 'link-checker-panel-body', btn: 'link-checker-toggle-btn', text: '▼ View Links' },
+      { id: 'tab-order-panel-body', btn: 'tab-order-toggle-btn', text: '▼ View Sequence' },
+      { id: 'sr-panel-body', btn: 'sr-toggle-btn', text: '▼ View Readout' },
+      { id: 'cvd-panel-body', btn: 'cvd-toggle-btn', text: '▼ Open Lenses' },
+    ];
+    bodies.forEach(({ id, btn, text }) => {
+      const el = document.getElementById(id);
+      if (el) el.classList.add('hidden');
+      const b = document.getElementById(btn);
+      if (b) b.textContent = text;
+    });
   });
 
   // Severity Filter Tabs
@@ -652,6 +829,21 @@ function setupEventListeners() {
       btn.classList.add('active');
       const cvdType = btn.getAttribute('data-cvd') || 'none';
 
+      // Update CVD Drawer Header Badge
+      const cvdBadge = document.getElementById('cvd-status-badge');
+      if (cvdBadge) {
+        if (cvdType === 'none') {
+          cvdBadge.textContent = 'Normal Spectrum';
+          cvdBadge.style.color = 'var(--color-primary)';
+          cvdBadge.style.borderColor = 'rgba(13, 159, 186, 0.35)';
+        } else {
+          const pillText = btn.textContent?.trim() || cvdType;
+          cvdBadge.textContent = `${pillText} Active`;
+          cvdBadge.style.color = '#fbbf24';
+          cvdBadge.style.borderColor = 'rgba(245, 158, 11, 0.4)';
+        }
+      }
+
       try {
         const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
         const targetTab = tab || (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
@@ -685,14 +877,9 @@ function setupEventListeners() {
  * @param {string} targetUrl
  */
 async function runAudit(targetUrl) {
-  const progressSec = document.getElementById('scan-progress');
-  const resultsSec = document.getElementById('results-view');
-  const errorSec = document.getElementById('error-view');
   const btnGo = document.getElementById('btn-go');
 
-  progressSec?.classList.remove('hidden');
-  resultsSec?.classList.add('hidden');
-  errorSec?.classList.add('hidden');
+  showProgressView();
   if (btnGo) {
     // @ts-ignore
     btnGo.disabled = true;
@@ -786,19 +973,17 @@ async function runAudit(targetUrl) {
     renderScorecard(auditData);
     renderIssuesList();
 
-    progressSec?.classList.add('hidden');
-    resultsSec?.classList.remove('hidden');
+    showResultsView();
   } catch (err) {
     console.error('[Auditor Error]:', err);
-    progressSec?.classList.add('hidden');
-    errorSec?.classList.remove('hidden');
+    showErrorView();
     const msg = document.getElementById('error-message');
     if (msg) msg.textContent = err.message || 'An unexpected error occurred.';
   } finally {
     if (btnGo) {
       // @ts-ignore
       btnGo.disabled = false;
-      btnGo.innerHTML = '<span class="btn-icon">⚡</span> Go';
+      btnGo.innerHTML = '<span class="btn-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></span> <span>Run Audit</span>';
     }
   }
 }
@@ -940,6 +1125,33 @@ function renderScorecard(audit) {
   if (tabCrit) tabCrit.textContent = String(audit.violations.filter(v => v.impact === 'critical').length);
   if (tabSer) tabSer.textContent = String(audit.violations.filter(v => v.impact === 'serious').length);
   if (tabMod) tabMod.textContent = String(audit.violations.filter(v => v.impact === 'moderate').length);
+
+  // Update Issues Collapsible Drawer Status Badge & Quickbar
+  const issuesBadge = document.getElementById('issues-status-badge');
+  const qpIssues = document.getElementById('qp-issues-count');
+  const violationCount = (audit.violations || []).length;
+  if (issuesBadge) {
+    if (violationCount === 0) {
+      issuesBadge.textContent = '✓ 0 Issues Passed';
+      issuesBadge.style.color = '#34d399';
+      issuesBadge.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+      issuesBadge.style.background = 'rgba(16, 185, 129, 0.15)';
+    } else {
+      issuesBadge.textContent = `${violationCount} Issue${violationCount === 1 ? '' : 's'}`;
+      issuesBadge.style.color = '#f87171';
+      issuesBadge.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+      issuesBadge.style.background = 'rgba(244, 63, 94, 0.18)';
+    }
+  }
+  if (qpIssues) qpIssues.textContent = String(violationCount);
+
+  // Tab Order Quickbar Count
+  const qpTabs = document.getElementById('qp-tabs-count');
+  if (qpTabs) qpTabs.textContent = String(audit.tabOrder?.elements?.length || 0);
+
+  // Screen Reader Quickbar Score
+  const qpSr = document.getElementById('qp-sr-score');
+  if (qpSr) qpSr.textContent = `${srScore}/100`;
 }
 
 /**
@@ -2181,6 +2393,18 @@ function renderLinksSection() {
   if (fBroken) fBroken.textContent = String(broken);
   if (fWarning) fWarning.textContent = String(warning);
   if (fWorking) fWorking.textContent = String(working);
+
+  // Quickbar Links Count
+  const qpLinks = document.getElementById('qp-links-count');
+  if (qpLinks) {
+    if (broken > 0) {
+      qpLinks.textContent = `${broken} ⚠️`;
+      qpLinks.style.color = '#f87171';
+    } else {
+      qpLinks.textContent = String(total);
+      qpLinks.style.color = 'var(--color-primary)';
+    }
+  }
 
   renderLinkCards();
 }
