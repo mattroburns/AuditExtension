@@ -397,11 +397,24 @@ function setupEventListeners() {
     if (url) runAudit(url);
   });
 
-  // Welcome State Quick-Scan CTA Button
-  document.getElementById('btn-welcome-scan')?.addEventListener('click', () => {
+  // Welcome State Quick-Scan CTA Button (fallback if outside form)
+  document.getElementById('btn-welcome-scan')?.addEventListener('click', (e) => {
+    // If inside a form, submit event handles it
+    if (form) return;
     // @ts-ignore
     const url = document.getElementById('input-url')?.value.trim();
     if (url) runAudit(url);
+  });
+
+  // Return to audit screen for a new URL
+  document.getElementById('btn-new-audit')?.addEventListener('click', () => {
+    showWelcomeView();
+    const inputUrl = document.getElementById('input-url');
+    if (inputUrl) {
+      inputUrl.focus();
+      // @ts-ignore
+      if (typeof inputUrl.select === 'function') inputUrl.select();
+    }
   });
 
   // Vision Simulation Suite Collapsible Drawer Toggle
@@ -877,9 +890,15 @@ function setupEventListeners() {
  * @param {string} targetUrl
  */
 async function runAudit(targetUrl) {
+  const btnScan = document.getElementById('btn-welcome-scan');
   const btnGo = document.getElementById('btn-go');
 
   showProgressView();
+  if (btnScan) {
+    // @ts-ignore
+    btnScan.disabled = true;
+    btnScan.innerHTML = '<span class="btn-icon">⏳</span> <span>Auditing...</span>';
+  }
   if (btnGo) {
     // @ts-ignore
     btnGo.disabled = true;
@@ -980,6 +999,11 @@ async function runAudit(targetUrl) {
     const msg = document.getElementById('error-message');
     if (msg) msg.textContent = err.message || 'An unexpected error occurred.';
   } finally {
+    if (btnScan) {
+      // @ts-ignore
+      btnScan.disabled = false;
+      btnScan.innerHTML = '<span class="btn-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></span> <span class="btn-text">Run Complete Audit</span>';
+    }
     if (btnGo) {
       // @ts-ignore
       btnGo.disabled = false;
