@@ -247,7 +247,7 @@
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
-    doc.text(`Audited on: ${auditDateStr}  •  Scan Duration: ${durationStr}`, margin + 14, infoCardY + 52);
+    doc.text(`Audited on: ${auditDateStr}   |   Scan Duration: ${durationStr}`, margin + 14, infoCardY + 52);
 
     // 2. The Results (4 Failure KPIs Summary Strip)
     const kpiY = infoCardY + infoCardH + 16;
@@ -265,25 +265,25 @@
     const kpiSummary = [
       {
         label: 'WCAG FAILURES',
-        val: wcagCount === 0 ? '✓ 0' : String(wcagCount),
+        val: String(wcagCount),
         sub: wcagCount === 0 ? 'All rules passed' : `${wcagCount} rule violations`,
         color: wcagCount === 0 ? sevColors.passed : sevColors.critical,
       },
       {
         label: 'LINK FAILURES',
-        val: linkCount === 0 ? '✓ 0' : String(linkCount),
+        val: String(linkCount),
         sub: linkCount === 0 ? 'All links valid' : `${linkCount} broken links`,
         color: linkCount === 0 ? sevColors.passed : sevColors.critical,
       },
       {
         label: 'TAB FAILURES',
-        val: tabCount === 0 ? '✓ 0' : String(tabCount),
+        val: String(tabCount),
         sub: tabCount === 0 ? 'Sequential flow' : `${tabCount} positive tabindex`,
         color: tabCount === 0 ? sevColors.passed : sevColors.serious,
       },
       {
         label: 'SCREEN READER',
-        val: srCount === 0 ? '✓ 0' : String(srCount),
+        val: String(srCount),
         sub: srCount === 0 ? 'Clean speech flow' : `${srCount} auditory barriers`,
         color: srCount === 0 ? sevColors.passed : sevColors.critical,
       },
@@ -334,28 +334,28 @@
         tag: wcagCount === 0 ? 'PASSED (0 VIOLATIONS)' : `${wcagCount} VIOLATIONS DETECTED`,
         tagColor: wcagCount === 0 ? sevColors.passed : sevColors.critical,
         desc: 'Automated axe-core compliance checks verifying color contrast ratios (4.5:1 min), image alternative text, accessible names, form labels, and semantic ARIA landmarks.',
-        status: wcagCount === 0 ? '✓ All automated rules passed' : `Found ${wcagCount} issues across ${totalAffectedElements} elements`,
+        status: wcagCount === 0 ? 'All automated rules passed' : `Found ${wcagCount} issues across ${totalAffectedElements} elements`,
       },
       {
         title: '2. Link Health & Integrity',
         tag: linkCount === 0 ? 'ALL VALID (0 BROKEN)' : `${linkCount} BROKEN DETECTED`,
         tagColor: linkCount === 0 ? sevColors.passed : sevColors.critical,
         desc: 'Live HTTP request verification testing all destination hyperlinks for 404 Not Found, 5xx server errors, dead in-page # anchors, and empty href placeholders.',
-        status: linkCount === 0 ? `✓ All ${linkTotal} links verified working` : `Detected ${linkCount} broken links requiring remediation`,
+        status: linkCount === 0 ? `All ${linkTotal} links verified working` : `Detected ${linkCount} broken links requiring remediation`,
       },
       {
         title: '3. Keyboard Tab Navigation',
         tag: tabCount === 0 ? 'SEQUENTIAL (DOM FLOW)' : `${tabCount} DISRUPTED TABINDEX`,
         tagColor: tabCount === 0 ? sevColors.passed : sevColors.serious,
         desc: 'Focus traversal evaluating sequential tab order, detecting positive tabindex attributes that break natural reading flow, and checking for keyboard focus traps.',
-        status: tabCount === 0 ? '✓ Natural sequential focus order preserved' : `Found ${tabCount} positive tabindex attributes disrupting focus`,
+        status: tabCount === 0 ? 'Natural sequential focus order preserved' : `Found ${tabCount} positive tabindex attributes disrupting focus`,
       },
       {
         title: '4. Screen Reader Usability',
         tag: srCount === 0 ? 'CLEAR (0 BARRIERS)' : `${srCount} AUDITORY BARRIERS`,
         tagColor: srCount === 0 ? sevColors.passed : sevColors.critical,
         desc: 'Speech synthesis simulation across iOS VoiceOver, Android TalkBack, NVDA, and Windows Narrator evaluating announced names, roles, states, and rotor landmarks.',
-        status: srCount === 0 ? '✓ Clean, barrier-free speech synthesis flow' : `Detected ${srCount} auditory barriers during readout`,
+        status: srCount === 0 ? 'Clean, barrier-free speech synthesis flow' : `Detected ${srCount} auditory barriers during readout`,
       },
     ];
 
@@ -484,7 +484,7 @@
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(7);
         doc.setTextColor(textDim[0], textDim[1], textDim[2]);
-        doc.text(`Rule ID: ${v.id}  •  Criterion: ${v.wcagRule || 'WCAG 2.2 AA'}  •  ${v.affectedCount || 1} failing element${(v.affectedCount || 1) === 1 ? '' : 's'}`, margin + 14, secY + 24);
+        doc.text(`Rule ID: ${v.id}   |   Criterion: ${v.wcagRule || 'WCAG 2.2 AA'}   |   ${v.affectedCount || 1} failing element${(v.affectedCount || 1) === 1 ? '' : 's'}`, margin + 14, secY + 24);
 
         // Plain explanation
         doc.setFont('helvetica', 'normal');
@@ -625,7 +625,7 @@
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
       doc.setTextColor(sevColors.passed[0], sevColors.passed[1], sevColors.passed[2]);
-      doc.text('✓ Perfect WCAG 2.2 Level AA Compliance — Zero Issues Found', margin + 14, secY + 20);
+      doc.text('Perfect WCAG 2.2 Level AA Compliance - Zero Issues Found', margin + 14, secY + 20);
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
@@ -757,7 +757,7 @@
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9.5);
         doc.setTextColor(sevColors.passed[0], sevColors.passed[1], sevColors.passed[2]);
-        doc.text('✓ All Links & Anchor Targets Verified Successfully', margin + 14, linkY + 18);
+        doc.text('All Links & Anchor Targets Verified Successfully', margin + 14, linkY + 18);
 
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
@@ -803,7 +803,7 @@
     doc.setFontSize(9);
     doc.setTextColor(hasTabIssue ? sevColors.serious[0] : sevColors.passed[0], hasTabIssue ? sevColors.serious[1] : sevColors.passed[1], hasTabIssue ? sevColors.serious[2] : sevColors.passed[2]);
     doc.text(
-      hasTabIssue ? `⚠ ${tabOrder.positiveTabIndexCount} elements have positive tabindex (Focus order disrupted)` : '✓ Sequential Tab Order (Natural DOM flow preserved)',
+      hasTabIssue ? `${tabOrder.positiveTabIndexCount} elements have positive tabindex (Focus order disrupted)` : 'Sequential Tab Order (Natural DOM flow preserved)',
       margin + 14,
       ksrY + 28
     );
