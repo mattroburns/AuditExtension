@@ -1875,7 +1875,7 @@ async function auditPageLinks(rawLinks = [], forceRecheck = false) {
     ...l,
     index: l.index || idx + 1,
     health: 'checking',
-    statusCode: null,
+    statusCode: /** @type {number|null} */ (null),
     statusText: 'Checking status...',
   }));
 
@@ -1961,6 +1961,8 @@ async function auditPageLinks(rawLinks = [], forceRecheck = false) {
    * @param {string} url
    */
   async function verifyUrl(url) {
+    if (!url || !/^https?:/i.test(url)) return;
+
     let result = {
       statusCode: 0,
       statusText: '',
@@ -1981,8 +1983,9 @@ async function auditPageLinks(rawLinks = [], forceRecheck = false) {
           cache: 'no-cache',
         });
       } catch (headErr) {
+        const hErr = /** @type {any} */ (headErr);
         // Retry with GET if HEAD fails (some servers reject HEAD or return 405 Method Not Allowed)
-        if (headErr.name !== 'AbortError') {
+        if (hErr?.name !== 'AbortError') {
           const getController = new AbortController();
           const getTimeoutId = setTimeout(() => getController.abort(), 6000);
           try {
@@ -2038,15 +2041,17 @@ async function auditPageLinks(rawLinks = [], forceRecheck = false) {
         }
       }
     } catch (netErr) {
-      if (netErr.name === 'AbortError' || netErr.name === 'TimeoutError') {
+      const nErr = /** @type {any} */ (netErr);
+      if (nErr?.name === 'AbortError' || nErr?.name === 'TimeoutError') {
         result.statusCode = 408;
         result.statusText = 'Request Timeout (6s response limit)';
         result.health = 'broken';
       } else {
         result.statusCode = 0;
-        result.statusText = netErr.message && netErr.message.includes('Failed to fetch')
+        const msg = nErr?.message || '';
+        result.statusText = msg.includes('Failed to fetch')
           ? 'Network / DNS resolution error'
-          : `Connection error: ${netErr.message || 'Unknown network error'}`;
+          : `Connection error: ${msg || 'Unknown network error'}`;
         result.health = 'broken';
       }
     }
@@ -2067,10 +2072,12 @@ async function auditPageLinks(rawLinks = [], forceRecheck = false) {
 
   // Concurrency pool (limit: 6 concurrent connections to avoid browser socket exhaustion)
   const CONCURRENCY = 6;
+  /** @type {Promise<void>[]} */
   const pool = [];
   for (let i = 0; i < uniqueUrls.length; i++) {
     const p = verifyUrl(uniqueUrls[i]).then(() => {
-      pool.splice(pool.indexOf(p), 1);
+      const pIdx = pool.indexOf(p);
+      if (pIdx !== -1) pool.splice(pIdx, 1);
     });
     pool.push(p);
     if (pool.length >= CONCURRENCY) {
@@ -2207,7 +2214,11 @@ function renderLinkCards() {
     return;
   }
 
-  container.innerHTML = filtered.map((item) => {
+  // Render cards (capped at 100 max for high performance)
+  const displayItems = filtered.slice(0, 100);
+  const isTruncated = filtered.length > 100;
+
+  container.innerHTML = displayItems.map((item) => {
     let cardClass = 'link-card';
     let badgeClass = 'link-status-badge';
     let badgeText = item.statusText || 'Unknown';
@@ -2274,7 +2285,11 @@ function renderLinkCards() {
         </button>
       </div>
     `;
-  }).join('');
+  }).join('') + (isTruncated ? `
+    <div style="padding: 12px; text-align: center; color: var(--text-muted); font-size: 11px;">
+      Showing first 100 of ${filtered.length} links. Filter by category above to view specific results.
+    </div>
+  ` : '');
 
   // Attach Spotlight event listeners
   container.querySelectorAll('.link-card').forEach((cardEl) => {
@@ -2282,7 +2297,7 @@ function renderLinkCards() {
     const item = (currentLinkAudit.items || []).find(it => it.index === idx);
     if (!item || !item.selector) return;
 
-    const btnSpotlight = cardEl.querySelector('.btn-locate-link');
+    const btnSpotlight = /** @type {HTMLElement|null} */ (cardEl.querySelector('.btn-locate-link'));
 
     const triggerLocate = () => {
       highlightElementOnPage(item.selector, {
@@ -2303,7 +2318,8 @@ function renderLinkCards() {
     });
 
     cardEl.addEventListener('click', (e) => {
-      if (e.target.closest('.btn-locate-link') || e.target.closest('a')) return;
+      const target = /** @type {Element|null} */ (e.target);
+      if (target && (target.closest('.btn-locate-link') || target.closest('a'))) return;
       triggerLocate();
     });
   });

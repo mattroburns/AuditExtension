@@ -1805,7 +1805,17 @@
         const targetId = rawHref.slice(1);
         if (targetId) {
           try {
-            hashTargetExists = !!(document.getElementById(targetId) || document.querySelector(`[name="${CSS.escape(targetId)}"]`));
+            let decodedId = targetId;
+            try {
+              decodedId = decodeURIComponent(targetId);
+            } catch (_) {}
+
+            hashTargetExists = !!(
+              document.getElementById(targetId) ||
+              (decodedId !== targetId && document.getElementById(decodedId)) ||
+              document.querySelector(`[name="${CSS.escape(targetId)}"]`) ||
+              (decodedId !== targetId && document.querySelector(`[name="${CSS.escape(decodedId)}"]`))
+            );
           } catch (_) {
             hashTargetExists = false;
           }

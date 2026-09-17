@@ -821,10 +821,12 @@
       const problematicLinks = (linkAudit.items || []).filter(item => item.health === 'broken' || item.health === 'warning');
 
       if (problematicLinks.length > 0) {
+        const totalProblems = problematicLinks.length;
+        const isCapped = totalProblems > 30;
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(10.5);
         doc.setTextColor(primaryNavy[0], primaryNavy[1], primaryNavy[2]);
-        doc.text(`Identified Broken & Deficient Links (${problematicLinks.length})`, margin, linkY);
+        doc.text(`Identified Broken & Deficient Links (${totalProblems}${isCapped ? ' — top 30 listed' : ''})`, margin, linkY);
 
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
