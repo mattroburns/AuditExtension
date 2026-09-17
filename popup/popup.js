@@ -1052,12 +1052,15 @@ function renderScorecard(audit) {
     if (srScore >= 85) {
       srBadgeEl.style.color = '#34d399';
       srBadgeEl.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+      srBadgeEl.style.background = 'rgba(16, 185, 129, 0.15)';
     } else if (srScore >= 70) {
       srBadgeEl.style.color = '#fbbf24';
       srBadgeEl.style.borderColor = 'rgba(245, 158, 11, 0.4)';
+      srBadgeEl.style.background = 'rgba(245, 158, 11, 0.15)';
     } else {
       srBadgeEl.style.color = '#f87171';
       srBadgeEl.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+      srBadgeEl.style.background = 'rgba(239, 68, 68, 0.15)';
     }
   }
 

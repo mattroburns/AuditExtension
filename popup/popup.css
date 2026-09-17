@@ -794,43 +794,54 @@ svg {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   overflow: hidden;
-  transition: border-color 0.15s;
+  transition: border-color 0.2s ease;
+}
+
+.screen-reader-section:hover {
+  border-color: var(--border-medium);
 }
 
 .sr-header {
-  padding: 10px 14px;
+  padding: 12px 14px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   cursor: pointer;
-  background: #000000;
   user-select: none;
+  background: var(--bg-surface);
+  transition: background 0.15s ease;
 }
+
 .sr-header:hover {
-  background: rgba(27, 111, 126, 0.12);
+  background: var(--bg-card);
 }
 
 .sr-header-title {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .sr-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: rgba(27, 111, 126, 0.25);
+  color: var(--color-primary);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-primary);
+  flex-shrink: 0;
 }
 
 .sr-title {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-main);
 }
 
 .sr-subtitle {
-  font-size: 10px;
+  font-size: 10.5px;
   color: var(--text-muted);
 }
 
@@ -841,29 +852,30 @@ svg {
 }
 
 .sr-score-badge {
-  font-size: 9.5px;
-  font-weight: 600;
-  padding: 2px 7px;
-  border-radius: var(--radius-xs);
-  background: rgba(27, 111, 126, 0.22);
-  border: 1px solid rgba(13, 159, 186, 0.4);
+  background: rgba(18, 119, 136, 0.22);
+  border: 1px solid rgba(13, 159, 186, 0.35);
   color: var(--color-primary);
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 10.5px;
+  font-weight: 600;
+  transition: all 0.2s ease;
 }
 
 .sr-toggle-btn {
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   color: var(--text-muted);
-  font-size: 10px;
-  font-weight: 500;
   padding: 3px 8px;
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-sm);
+  font-size: 10.5px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.15s ease;
 }
+
 .sr-toggle-btn:hover {
-  border-color: var(--color-primary);
   color: var(--text-main);
+  border-color: var(--border-medium);
 }
 
 .sr-panel-body {
@@ -2526,29 +2538,28 @@ svg {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   overflow: hidden;
-  margin-bottom: 16px;
   box-shadow: var(--shadow-sm);
   transition: all 0.2s ease;
 }
 
 .link-checker-section:hover {
-  border-color: rgba(27, 111, 126, 0.5);
+  border-color: var(--border-medium);
 }
 
 .link-checker-header {
-  padding: 12px 16px;
+  padding: 12px 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   cursor: pointer;
-  background: linear-gradient(90deg, rgba(27, 111, 126, 0.08) 0%, transparent 100%);
+  background: var(--bg-surface);
   user-select: none;
   transition: background 0.15s ease;
 }
 
 .link-checker-header:hover {
-  background: linear-gradient(90deg, rgba(27, 111, 126, 0.16) 0%, rgba(13, 159, 186, 0.06) 100%);
+  background: var(--bg-card);
 }
 
 .link-checker-header-title {
@@ -2559,10 +2570,9 @@ svg {
 }
 
 .link-checker-icon {
-  width: 32px;
-  height: 32px;
-  background: rgba(13, 159, 186, 0.12);
-  border: 1px solid rgba(13, 159, 186, 0.28);
+  width: 28px;
+  height: 28px;
+  background: rgba(27, 111, 126, 0.25);
   border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
@@ -2573,16 +2583,15 @@ svg {
 
 .link-checker-title {
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-main);
   margin: 0;
-  letter-spacing: -0.2px;
 }
 
 .link-checker-subtitle {
   font-size: 10.5px;
   color: var(--text-muted);
-  margin: 2px 0 0 0;
+  margin: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
