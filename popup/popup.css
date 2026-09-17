@@ -362,20 +362,6 @@ svg {
   gap: 13px;
 }
 
-.welcome-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: rgba(27, 111, 126, 0.25);
-  border: 1px solid rgba(13, 159, 186, 0.4);
-  padding: 3px 8px;
-  border-radius: 12px;
-  font-size: 9.5px;
-  font-weight: 700;
-  color: #0D9FBA;
-  width: fit-content;
-}
-
 .welcome-title {
   font-size: 15px;
   font-weight: 700;
