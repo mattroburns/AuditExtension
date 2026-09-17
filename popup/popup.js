@@ -597,6 +597,10 @@ function setupEventListeners() {
 
       if (!img.naturalWidth || !img.naturalHeight) return;
 
+      audit.pageScreenshotWidth = img.naturalWidth;
+      audit.pageScreenshotHeight = img.naturalHeight;
+      audit.pageScreenshotAspect = img.naturalWidth / img.naturalHeight;
+
       let tabWidth = 1280;
       try {
         const tab = await getActiveWebTab();
@@ -645,6 +649,8 @@ function setupEventListeners() {
                 ctx.strokeRect(rx, ry, rw, rh);
 
                 node.screenshot = canvas.toDataURL('image/png');
+                node.screenshotWidth = canvas.width;
+                node.screenshotHeight = canvas.height;
               }
             }
           }

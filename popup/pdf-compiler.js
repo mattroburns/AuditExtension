@@ -456,8 +456,45 @@
     // Visual Page Overview Screenshot (if captured)
     if (auditData.pageScreenshot || auditData.screenshot) {
       const pageShot = auditData.pageScreenshot || auditData.screenshot;
+
+      // Determine natural aspect ratio (width / height) to prevent squashing
+      let shotAspect = 16 / 9; // Fallback standard widescreen aspect ratio
+      if (auditData.pageScreenshotWidth && auditData.pageScreenshotHeight) {
+        shotAspect = auditData.pageScreenshotWidth / auditData.pageScreenshotHeight;
+      } else if (typeof Image !== 'undefined' && pageShot && typeof pageShot === 'string' && pageShot.startsWith('data:image')) {
+        try {
+          const tempImg = new Image();
+          tempImg.src = pageShot;
+          if (tempImg.naturalWidth && tempImg.naturalHeight) {
+            shotAspect = tempImg.naturalWidth / tempImg.naturalHeight;
+          }
+        } catch (_) {}
+      } else {
+        try {
+          if (typeof doc.getImageProperties === 'function') {
+            const props = doc.getImageProperties(pageShot);
+            if (props && props.width && props.height) {
+              shotAspect = props.width / props.height;
+            }
+          }
+        } catch (_) {}
+      }
+
+      // Constrain within available content width and comfortable height to preserve 100% natural proportions
+      const maxImgW = contentWidth - 16;
+      const maxImgH = 265;
+
+      let imgW = maxImgW;
+      let imgH = imgW / shotAspect;
+      if (imgH > maxImgH) {
+        imgH = maxImgH;
+        imgW = imgH * shotAspect;
+      }
+      imgW = Math.round(imgW);
+      imgH = Math.round(imgH);
+
       const shotCardW = contentWidth;
-      const shotCardH = 190;
+      const shotCardH = imgH + 16;
       ensureSpace(shotCardH + 45);
 
       doc.setFont('helvetica', 'bold');
@@ -476,9 +513,13 @@
       doc.setDrawColor(cardBorder[0], cardBorder[1], cardBorder[2]);
       doc.roundedRect(margin, shotY, shotCardW, shotCardH, 4, 4, 'S');
 
+      // Center the image proportionally within the dark card frame
+      const imgX = margin + Math.round((contentWidth - imgW) / 2);
+      const imgY = shotY + 8;
+
       try {
         if (typeof doc.addImage === 'function') {
-          doc.addImage(pageShot, 'PNG', margin + 4, shotY + 4, shotCardW - 8, shotCardH - 8, undefined, 'FAST');
+          doc.addImage(pageShot, 'PNG', imgX, imgY, imgW, imgH, undefined, 'FAST');
         }
       } catch (_) {}
 
@@ -560,16 +601,57 @@
           const codeLines = doc.splitTextToSize(codeSnippet, contentWidth - 44).slice(0, 4);
           const codeBoxH = Math.max(34, 16 + codeLines.length * 9.5);
 
-          // Screenshots & position checks
+          // Screenshots & position checks with aspect ratio preservation
           const hasShot = !!(node.screenshot || node.image);
-          const shotH = hasShot ? 65 : 0;
+          let elemThumbW = 0;
+          let elemThumbH = 0;
+          let elemBoxH = 0;
+
+          if (hasShot) {
+            let elemAspect = 2.2;
+            if (node.screenshotWidth && node.screenshotHeight) {
+              elemAspect = node.screenshotWidth / node.screenshotHeight;
+            } else if (node.rect && node.rect.width > 0 && node.rect.height > 0) {
+              elemAspect = (node.rect.width + 28) / (node.rect.height + 28);
+            } else if (typeof Image !== 'undefined' && node.screenshot && typeof node.screenshot === 'string' && node.screenshot.startsWith('data:image')) {
+              try {
+                const ti = new Image();
+                ti.src = node.screenshot;
+                if (ti.naturalWidth && ti.naturalHeight) {
+                  elemAspect = ti.naturalWidth / ti.naturalHeight;
+                }
+              } catch (_) {}
+            } else {
+              try {
+                if (typeof doc.getImageProperties === 'function') {
+                  const ep = doc.getImageProperties(node.screenshot || node.image);
+                  if (ep && ep.width && ep.height) {
+                    elemAspect = ep.width / ep.height;
+                  }
+                }
+              } catch (_) {}
+            }
+
+            const maxThumbW = Math.min(260, contentWidth - 48);
+            const maxThumbH = 80;
+            elemThumbW = maxThumbW;
+            elemThumbH = elemThumbW / elemAspect;
+            if (elemThumbH > maxThumbH) {
+              elemThumbH = maxThumbH;
+              elemThumbW = elemThumbH * elemAspect;
+            }
+            elemThumbW = Math.round(elemThumbW);
+            elemThumbH = Math.round(elemThumbH);
+            elemBoxH = elemThumbH + 22;
+          }
+
           const hasRect = !!(node.rect && node.rect.width > 0);
 
           // Total element card height calculation
           let itemCardH = 14 + 13 + 13; // header, location, offending html
           if (hasRect) itemCardH += 13; // position coordinates
           if (diagText) itemCardH += 13;
-          if (hasShot) itemCardH += shotH + 20; // visual screenshot box
+          if (hasShot) itemCardH += elemBoxH + 13; // visual screenshot box
           itemCardH += codeBoxH + 16; // code box + padding
 
           ensureSpace(itemCardH + 10);
@@ -643,11 +725,12 @@
           // Visual screenshot of the issue location
           if (hasShot) {
             itemY += 13;
-            const shotW = Math.min(220, contentWidth - 48);
+            const containerW = elemThumbW + 16;
+            const containerH = elemBoxH;
             doc.setFillColor(codeBg[0], codeBg[1], codeBg[2]);
-            doc.roundedRect(margin + 12, itemY, shotW + 16, shotH + 16, 3, 3, 'F');
+            doc.roundedRect(margin + 12, itemY, containerW, containerH, 3, 3, 'F');
             doc.setDrawColor(codeBorder[0], codeBorder[1], codeBorder[2]);
-            doc.roundedRect(margin + 12, itemY, shotW + 16, shotH + 16, 3, 3, 'S');
+            doc.roundedRect(margin + 12, itemY, containerW, containerH, 3, 3, 'S');
 
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(6);
@@ -656,11 +739,11 @@
 
             try {
               if (typeof doc.addImage === 'function') {
-                doc.addImage(node.screenshot || node.image, 'PNG', margin + 18, itemY + 14, shotW, shotH, undefined, 'FAST');
+                doc.addImage(node.screenshot || node.image, 'PNG', margin + 20, itemY + 15, elemThumbW, elemThumbH, undefined, 'FAST');
               }
             } catch (_) {}
 
-            itemY += shotH + 20;
+            itemY += containerH + 6;
           }
 
           itemY += 12;
