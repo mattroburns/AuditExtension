@@ -2,8 +2,9 @@
 
 /**
  * Dark Mode Accessibility & Quality Audit PDF Report Compiler
- * Generates an executive, human-readable dark mode audit document matching the extension UI.
- * Focuses on concrete facts: Target URL, What was tested, When tested, Results, and Fixes.
+ * Page 1: Executive Title Page containing Page Title, Audited URL, Date, Results Overview,
+ * and distinct testing module boxes showing what the extension tested and each outcome.
+ * Pages 2+: Detailed descriptions of issues found, selectors, offending HTML, and copy-paste code fixes.
  * Entirely client-side using jsPDF and autoTable.
  */
 
@@ -197,114 +198,66 @@
     }
 
     // =========================================================================
-    // PAGE 1: AUDIT SCOPE, TARGET INFO & RESULTS OVERVIEW
+    // PAGE 1: TITLE PAGE (COVER & EXECUTIVE SUMMARY)
     // =========================================================================
 
-    // Top Header Banner
-    const headerY = 32;
-    const headerH = 56;
-    doc.setFillColor(cardBg[0], cardBg[1], cardBg[2]);
-    doc.roundedRect(margin, headerY, contentWidth, headerH, 4, 4, 'F');
-    doc.setDrawColor(cardBorder[0], cardBorder[1], cardBorder[2]);
-    doc.roundedRect(margin, headerY, contentWidth, headerH, 4, 4, 'S');
-
-    // Left cyan accent bar
-    doc.setFillColor(accentCyan[0], accentCyan[1], accentCyan[2]);
-    doc.roundedRect(margin, headerY, 4, headerH, 2, 2, 'F');
-
-    // Header Title
+    // Clean Title Block
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(13);
+    doc.setFontSize(22);
     doc.setTextColor(textBright[0], textBright[1], textBright[2]);
-    doc.text('Accessibility & Quality Audit Report', margin + 16, headerY + 22);
+    doc.text('Accessibility Audit', margin, 54);
+
+    // Accent line beneath title
+    doc.setFillColor(accentCyan[0], accentCyan[1], accentCyan[2]);
+    doc.roundedRect(margin, 62, 42, 3, 1.5, 1.5, 'F');
 
     const cleanUrl = auditData.url || 'Target Web Page';
     const pageTitle = auditData.pageTitle || 'Target Page';
 
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
-    doc.setTextColor(accentCyan[0], accentCyan[1], accentCyan[2]);
-    doc.text(doc.splitTextToSize(`Target: ${cleanUrl}`, contentWidth - 40)[0] || cleanUrl, margin + 16, headerY + 40);
-
-    let curY = headerY + headerH + 16;
-
-    // Audit Metadata Box: URL, When Tested, What Was Tested
-    const metaBoxH = 126;
+    // 1. Property, URL & Date Card
+    const infoCardY = 76;
+    const infoCardH = 68;
     doc.setFillColor(cardBg[0], cardBg[1], cardBg[2]);
-    doc.roundedRect(margin, curY, contentWidth, metaBoxH, 4, 4, 'F');
+    doc.roundedRect(margin, infoCardY, contentWidth, infoCardH, 4, 4, 'F');
     doc.setDrawColor(cardBorder[0], cardBorder[1], cardBorder[2]);
-    doc.roundedRect(margin, curY, contentWidth, metaBoxH, 4, 4, 'S');
+    doc.roundedRect(margin, infoCardY, contentWidth, infoCardH, 4, 4, 'S');
 
-    let metaInnerY = curY + 14;
+    // Left cyan accent bar
+    doc.setFillColor(accentCyan[0], accentCyan[1], accentCyan[2]);
+    doc.roundedRect(margin, infoCardY, 3.5, infoCardH, 1.5, 1.5, 'F');
 
-    // 1. URL & Title
+    // Page Title & URL
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
-    doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
-    doc.text('AUDITED URL & TITLE', margin + 14, metaInnerY);
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.5);
+    doc.setFontSize(10.5);
     doc.setTextColor(textBright[0], textBright[1], textBright[2]);
-    doc.text(pageTitle, margin + 14, metaInnerY + 12);
+    doc.text(doc.splitTextToSize(pageTitle, contentWidth - 30)[0] || pageTitle, margin + 14, infoCardY + 18);
 
     doc.setFont('courier', 'normal');
-    doc.setFontSize(7.5);
+    doc.setFontSize(8);
     doc.setTextColor(accentCyan[0], accentCyan[1], accentCyan[2]);
-    const splitUrl = doc.splitTextToSize(cleanUrl, contentWidth - 28);
-    doc.text(splitUrl[0] || cleanUrl, margin + 14, metaInnerY + 24);
+    doc.text(doc.splitTextToSize(cleanUrl, contentWidth - 30)[0] || cleanUrl, margin + 14, infoCardY + 34);
 
-    metaInnerY += 34;
-
-    // 2. When Tested
+    // Audit Date & Scan Duration
     const auditDateStr = auditData.formattedDate || new Date().toLocaleString('en-GB', {
       dateStyle: 'full',
       timeStyle: 'medium',
     });
     const durationStr = auditData.scanDurationSeconds ? `${auditData.scanDurationSeconds}s` : '0.1s';
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
-    doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
-    doc.text('WHEN TESTED', margin + 14, metaInnerY);
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(textBright[0], textBright[1], textBright[2]);
-    doc.text(`${auditDateStr}  (Scan Duration: ${durationStr})`, margin + 14, metaInnerY + 12);
-
-    metaInnerY += 24;
-
-    // 3. What Was Tested
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
-    doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
-    doc.text('WHAT WAS TESTED (AUDIT SCOPE)', margin + 14, metaInnerY);
-
-    const testScopeItems = [
-      '• WCAG 2.2 AA Rules: Color contrast ratios, missing alternative text, accessible names, form labels, and landmarks.',
-      '• Link Health: Live HTTP status validation (detecting 404s, 5xx server errors, broken in-page # anchors, empty hrefs).',
-      '• Keyboard Navigation: Tab order sequence path, positive tabindex disruptions, and sequential focus order.',
-      '• Screen Reader Readout: Speech synthesis simulation across iOS VoiceOver, TalkBack, NVDA, and Windows Narrator.',
-    ];
-
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
-    let scopeLineY = metaInnerY + 12;
-    testScopeItems.forEach((item) => {
-      doc.text(item, margin + 14, scopeLineY);
-      scopeLineY += 10;
-    });
+    doc.text(`Audited on: ${auditDateStr}  •  Scan Duration: ${durationStr}`, margin + 14, infoCardY + 52);
 
-    curY += metaBoxH + 16;
-
-    // Results Summary: The 4 Failure Counters
+    // 2. The Results (4 Failure KPIs Summary Strip)
+    const kpiY = infoCardY + infoCardH + 16;
     const wcagCount = (auditData.violations || []).length;
     const linkAuditData = auditData.linkAudit || {};
     const linkCount = linkAuditData.broken || 0;
+    const linkTotal = linkAuditData.total || (auditData.links || []).length || 0;
     const tabCount = auditData.tabOrder ? (auditData.tabOrder.positiveTabIndexCount || 0) : 0;
     const srCount = (auditData.speechSequence || []).filter(s => s.isBarrier).length;
+    const totalAffectedElements = (auditData.violations || []).reduce((sum, v) => sum + (v.affectedCount || 1), 0);
 
     const kpiCardW = (contentWidth - 24) / 4;
     const kpiCardH = 48;
@@ -340,114 +293,167 @@
       const cx = margin + idx * (kpiCardW + 8);
 
       doc.setFillColor(cardBg[0], cardBg[1], cardBg[2]);
-      doc.roundedRect(cx, curY, kpiCardW, kpiCardH, 4, 4, 'F');
+      doc.roundedRect(cx, kpiY, kpiCardW, kpiCardH, 4, 4, 'F');
       doc.setDrawColor(cardBorder[0], cardBorder[1], cardBorder[2]);
-      doc.roundedRect(cx, curY, kpiCardW, kpiCardH, 4, 4, 'S');
+      doc.roundedRect(cx, kpiY, kpiCardW, kpiCardH, 4, 4, 'S');
 
       // Top colored indicator line
       doc.setFillColor(kpi.color[0], kpi.color[1], kpi.color[2]);
-      doc.roundedRect(cx, curY, kpiCardW, 2.5, 1, 1, 'F');
+      doc.roundedRect(cx, kpiY, kpiCardW, 2.5, 1, 1, 'F');
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(6.5);
       doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
-      doc.text(kpi.label, cx + 10, curY + 14);
+      doc.text(kpi.label, cx + 10, kpiY + 14);
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(14);
       doc.setTextColor(kpi.color[0], kpi.color[1], kpi.color[2]);
-      doc.text(kpi.val, cx + 10, curY + 31);
+      doc.text(kpi.val, cx + 10, kpiY + 31);
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(6.5);
       doc.setTextColor(textDim[0], textDim[1], textDim[2]);
-      doc.text(kpi.sub, cx + 10, curY + 41);
+      doc.text(kpi.sub, cx + 10, kpiY + 41);
     });
 
-    curY += kpiCardH + 18;
-
-    // Overview Table of Identified WCAG Violations
+    // 3. Small Box for Each Thing We Test With the Extension
+    const modulesLabelY = kpiY + kpiCardH + 20;
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
+    doc.setFontSize(10);
     doc.setTextColor(textBright[0], textBright[1], textBright[2]);
-    doc.text('WCAG Issues Summary', margin, curY);
+    doc.text('WHAT WAS TESTED (AUDIT SCOPE & MODULE FINDINGS)', margin, modulesLabelY);
+
+    const modulesGridY = modulesLabelY + 12;
+    const modColW = (contentWidth - 10) / 2;
+    const modCardH = 92;
+
+    const testModules = [
+      {
+        title: '1. WCAG 2.2 Level AA Rules',
+        tag: wcagCount === 0 ? 'PASSED (0 VIOLATIONS)' : `${wcagCount} VIOLATIONS DETECTED`,
+        tagColor: wcagCount === 0 ? sevColors.passed : sevColors.critical,
+        desc: 'Automated axe-core compliance checks verifying color contrast ratios (4.5:1 min), image alternative text, accessible names, form labels, and semantic ARIA landmarks.',
+        status: wcagCount === 0 ? '✓ All automated rules passed' : `Found ${wcagCount} issues across ${totalAffectedElements} elements`,
+      },
+      {
+        title: '2. Link Health & Integrity',
+        tag: linkCount === 0 ? 'ALL VALID (0 BROKEN)' : `${linkCount} BROKEN DETECTED`,
+        tagColor: linkCount === 0 ? sevColors.passed : sevColors.critical,
+        desc: 'Live HTTP request verification testing all destination hyperlinks for 404 Not Found, 5xx server errors, dead in-page # anchors, and empty href placeholders.',
+        status: linkCount === 0 ? `✓ All ${linkTotal} links verified working` : `Detected ${linkCount} broken links requiring remediation`,
+      },
+      {
+        title: '3. Keyboard Tab Navigation',
+        tag: tabCount === 0 ? 'SEQUENTIAL (DOM FLOW)' : `${tabCount} DISRUPTED TABINDEX`,
+        tagColor: tabCount === 0 ? sevColors.passed : sevColors.serious,
+        desc: 'Focus traversal evaluating sequential tab order, detecting positive tabindex attributes that break natural reading flow, and checking for keyboard focus traps.',
+        status: tabCount === 0 ? '✓ Natural sequential focus order preserved' : `Found ${tabCount} positive tabindex attributes disrupting focus`,
+      },
+      {
+        title: '4. Screen Reader Usability',
+        tag: srCount === 0 ? 'CLEAR (0 BARRIERS)' : `${srCount} AUDITORY BARRIERS`,
+        tagColor: srCount === 0 ? sevColors.passed : sevColors.critical,
+        desc: 'Speech synthesis simulation across iOS VoiceOver, Android TalkBack, NVDA, and Windows Narrator evaluating announced names, roles, states, and rotor landmarks.',
+        status: srCount === 0 ? '✓ Clean, barrier-free speech synthesis flow' : `Detected ${srCount} auditory barriers during readout`,
+      },
+    ];
+
+    testModules.forEach((mod, idx) => {
+      const col = idx % 2;
+      const row = Math.floor(idx / 2);
+      const mx = margin + col * (modColW + 10);
+      const my = modulesGridY + row * (modCardH + 10);
+
+      doc.setFillColor(cardBg[0], cardBg[1], cardBg[2]);
+      doc.roundedRect(mx, my, modColW, modCardH, 4, 4, 'F');
+      doc.setDrawColor(cardBorder[0], cardBorder[1], cardBorder[2]);
+      doc.roundedRect(mx, my, modColW, modCardH, 4, 4, 'S');
+
+      // Header row
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(textBright[0], textBright[1], textBright[2]);
+      doc.text(mod.title, mx + 10, my + 15);
+
+      // Status pill badge on top right of card
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.5);
+      doc.setTextColor(mod.tagColor[0], mod.tagColor[1], mod.tagColor[2]);
+      doc.text(mod.tag, mx + modColW - 10, my + 15, { align: 'right' });
+
+      // Description
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
+      const descLines = doc.splitTextToSize(mod.desc, modColW - 20);
+      let dy = my + 28;
+      descLines.forEach((l) => {
+        doc.text(l, mx + 10, dy);
+        dy += 9;
+      });
+
+      // Status summary footer line
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      doc.setTextColor(mod.tagColor[0], mod.tagColor[1], mod.tagColor[2]);
+      doc.text(mod.status, mx + 10, my + modCardH - 10);
+    });
+
+    // Box 5: Vision Deficiency Simulation (Full width banner card)
+    const visionCardY = modulesGridY + 2 * (modCardH + 10);
+    const visionCardH = 44;
+
+    doc.setFillColor(cardBg[0], cardBg[1], cardBg[2]);
+    doc.roundedRect(margin, visionCardY, contentWidth, visionCardH, 4, 4, 'F');
+    doc.setDrawColor(cardBorder[0], cardBorder[1], cardBorder[2]);
+    doc.roundedRect(margin, visionCardY, contentWidth, visionCardH, 4, 4, 'S');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(textBright[0], textBright[1], textBright[2]);
+    doc.text('5. Vision & Color Deficiency Simulation Suite', margin + 10, visionCardY + 16);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.setTextColor(sevColors.passed[0], sevColors.passed[1], sevColors.passed[2]);
+    doc.text('9 SIMULATION LENSES AVAILABLE', margin + contentWidth - 10, visionCardY + 16, { align: 'right' });
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
+    doc.text(
+      'Evaluates on-page chromatic deficiency filters: Protanopia, Deuteranopia, Tritanopia, Achromatopsia, Cataracts (Blur), and Low Contrast readability.',
+      margin + 10,
+      visionCardY + 30
+    );
+
+    // =========================================================================
+    // PAGE 2+: DETAILED DESCRIPTIONS & RECOMMENDED FIXES
+    // =========================================================================
+    addDarkPage();
+    let secY = 36;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(textBright[0], textBright[1], textBright[2]);
+    doc.text('Detailed Issues & Recommended Code Fixes', margin, secY);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
-    const totalAffected = (auditData.violations || []).reduce((sum, v) => sum + (v.affectedCount || 1), 0);
-    doc.text(`${wcagCount} issues found across ${totalAffected} DOM elements`, margin, curY + 12);
+    doc.text('Itemized breakdown of detected accessibility violations, affected element locations, offending HTML, and copy-paste code solutions.', margin, secY + 13);
 
-    curY += 20;
+    secY += 26;
 
-    if (wcagCount > 0) {
-      const summaryTableData = (auditData.violations || []).map((v) => [
-        v.help || v.id,
-        v.wcagRule || 'WCAG 2.2 AA',
-        (v.impact || 'moderate').toUpperCase(),
-        `${v.affectedCount || 1} element${(v.affectedCount || 1) === 1 ? '' : 's'}`,
-      ]);
-
-      runAutoTable(doc, {
-        startY: curY,
-        head: [['Accessibility Rule & Issue', 'Criterion', 'Severity', 'Impacted']],
-        body: summaryTableData,
-        margin: { left: margin, right: margin },
-        columnStyles: {
-          0: { cellWidth: 230, fontStyle: 'bold', textColor: textBright },
-          1: { cellWidth: 120, textColor: textMuted },
-          2: { cellWidth: 80, fontStyle: 'bold' },
-          3: { cellWidth: 93 },
-        },
-        didParseCell: function (data) {
-          if (data.section === 'body' && data.column.index === 2) {
-            const val = String(data.cell.raw).toLowerCase();
-            if (val === 'critical') data.cell.styles.textColor = sevColors.critical;
-            else if (val === 'serious') data.cell.styles.textColor = sevColors.serious;
-            else if (val === 'moderate') data.cell.styles.textColor = sevColors.moderate;
-            else if (val === 'minor') data.cell.styles.textColor = sevColors.minor;
-          }
-        },
-      });
-    } else {
-      // Clean passing box
-      doc.setFillColor(10, 28, 22);
-      doc.roundedRect(margin, curY, contentWidth, 42, 4, 4, 'F');
-      doc.setDrawColor(20, 60, 45);
-      doc.roundedRect(margin, curY, contentWidth, 42, 4, 4, 'S');
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9.5);
-      doc.setTextColor(sevColors.passed[0], sevColors.passed[1], sevColors.passed[2]);
-      doc.text('✓ All automated WCAG 2.2 Level AA rule checks passed cleanly with 0 violations.', margin + 14, curY + 24);
+    function ensureSpace(needed) {
+      if (secY + needed > pageHeight - 45) {
+        addDarkPage();
+        secY = 36;
+      }
     }
 
-    // =========================================================================
-    // SECTION 2: DETAILED ISSUES & RECOMMENDED FIXES (Page 2+)
-    // =========================================================================
     if (wcagCount > 0) {
-      addDarkPage();
-      let secY = 36;
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(12);
-      doc.setTextColor(textBright[0], textBright[1], textBright[2]);
-      doc.text('Detailed Issues & Recommended Code Fixes', margin, secY);
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
-      doc.text('Specific DOM element locations, diagnostics, and copy-paste code solutions to resolve each issue.', margin, secY + 12);
-
-      secY += 26;
-
-      function ensureSpace(needed) {
-        if (secY + needed > pageHeight - 45) {
-          addDarkPage();
-          secY = 36;
-        }
-      }
-
       (auditData.violations || []).forEach((v) => {
         const sevColor = sevColors[v.impact] || sevColors.moderate;
         const plainDesc = getIssuePlainExplanation(v.id);
@@ -609,6 +615,24 @@
           secY += itemCardH + 10;
         });
       });
+    } else {
+      // 0 WCAG violations
+      doc.setFillColor(10, 28, 22);
+      doc.roundedRect(margin, secY, contentWidth, 48, 4, 4, 'F');
+      doc.setDrawColor(20, 60, 45);
+      doc.roundedRect(margin, secY, contentWidth, 48, 4, 4, 'S');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(sevColors.passed[0], sevColors.passed[1], sevColors.passed[2]);
+      doc.text('✓ Perfect WCAG 2.2 Level AA Compliance — Zero Issues Found', margin + 14, secY + 20);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
+      doc.text('All automated accessibility rules passed with zero violations across color contrast, alternative text, form controls, and ARIA landmarks.', margin + 14, secY + 34);
+
+      secY += 60;
     }
 
     // =========================================================================
