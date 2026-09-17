@@ -489,180 +489,171 @@ svg {
   gap: 12px;
 }
 
-.scorecard-banner {
+/* Executive Overview Banner */
+.overview-banner {
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  padding: 14px 16px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.overview-header-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  flex-wrap: wrap;
   gap: 12px;
 }
 
-.scorecard-main {
+.overview-page-info {
   display: flex;
-  align-items: center;
-  gap: 14px;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
   flex: 1;
 }
 
-.score-circle-wrapper {
-  flex-shrink: 0;
-}
-
-.score-circle {
-  width: 62px;
-  height: 62px;
-  border-radius: 50%;
-  border: 2.5px solid var(--color-primary);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: #000000;
-  box-shadow: 0 0 16px rgba(13, 159, 186, 0.2);
-}
-
-.score-val {
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--text-main);
-  line-height: 1;
-}
-
-.score-denom {
-  font-size: 9px;
-  color: var(--text-dim);
-  font-weight: 600;
-}
-
-.score-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.target-row {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-
 .target-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-main);
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 330px;
 }
 
 .target-link {
-  font-size: 10.5px;
+  font-size: 11px;
+  font-family: var(--font-mono);
   color: var(--color-primary);
   text-decoration: none;
-  max-width: 260px;
+  max-width: 330px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  opacity: 0.88;
+  transition: opacity 0.15s, text-decoration 0.15s;
 }
 .target-link:hover {
+  opacity: 1;
   text-decoration: underline;
 }
 
-.badges-row {
+.overview-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin: 2px 0;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
-.pill {
-  font-size: 9.5px;
-  font-weight: 600;
-  padding: 2px 6px;
-  border-radius: var(--radius-xs);
-  display: flex;
+.scan-time-pill {
+  display: inline-flex;
   align-items: center;
   gap: 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.grade-pill {
-  background: rgba(27, 111, 126, 0.18);
-  border: 1px solid var(--border-subtle);
-  color: var(--text-main);
-}
-
-.risk-pill {
-  border: 1px solid transparent;
-}
-.risk-severe { background: rgba(239, 68, 68, 0.15); color: #f87171; border-color: rgba(239, 68, 68, 0.3); }
-.risk-high { background: rgba(249, 115, 22, 0.15); color: #fb923c; border-color: rgba(249, 115, 22, 0.3); }
-.risk-moderate { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border-color: rgba(245, 158, 11, 0.3); }
-.risk-low { background: rgba(16, 185, 129, 0.15); color: #34d399; border-color: rgba(16, 185, 129, 0.3); }
-
-.sr-pill {
-  background: rgba(27, 111, 126, 0.22);
-  border: 1px solid rgba(13, 159, 186, 0.4);
-  color: var(--color-primary);
-}
-
-.time-pill {
+  font-size: 10px;
   color: var(--text-dim);
-  font-size: 9.5px;
-  gap: 3px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--border-subtle);
+  padding: 4px 7px;
+  border-radius: var(--radius-xs);
 }
 
-.summary-narrative {
-  font-size: 11px;
-  color: var(--text-muted);
-  line-height: 1.4;
-  max-width: 320px;
-}
-
-/* Metrics Grid */
-.metrics-grid {
+/* 4 Failure Counters Grid */
+.failures-summary-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 8px;
 }
 
-.metric-card {
-  background: var(--bg-surface);
+.failure-kpi-card {
+  background: #000000;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   padding: 8px 10px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  user-select: none;
 }
 
-.card-critical { border-left: 3px solid var(--color-critical); }
-.card-serious { border-left: 3px solid var(--color-serious); }
-.card-moderate { border-left: 3px solid var(--color-moderate); }
-.card-passed { border-left: 3px solid var(--color-emerald); }
+.failure-kpi-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(13, 159, 186, 0.45);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.6);
+}
 
-.metric-icon {
+.failure-kpi-icon-wrap {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+  background: rgba(11, 21, 24, 0.9);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  transition: all 0.2s ease;
 }
 
-.metric-label {
-  font-size: 9.5px;
+.failure-kpi-details {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.failure-kpi-label {
+  font-size: 9px;
   font-weight: 600;
   color: var(--text-muted);
-  display: block;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.metric-val {
-  font-size: 16px;
+.failure-kpi-val {
+  font-size: 15px;
   font-weight: 700;
   color: var(--text-main);
-  line-height: 1.1;
+  line-height: 1.15;
+  font-family: var(--font-mono);
+}
+
+/* Has Failures State */
+.failure-kpi-card.kpi-has-failures {
+  border-color: rgba(244, 63, 94, 0.4);
+  background: linear-gradient(180deg, rgba(244, 63, 94, 0.09) 0%, #000000 100%);
+}
+.failure-kpi-card.kpi-has-failures .failure-kpi-icon-wrap {
+  background: rgba(244, 63, 94, 0.16);
+  border-color: rgba(244, 63, 94, 0.45);
+  color: #f87171;
+}
+.failure-kpi-card.kpi-has-failures .failure-kpi-val {
+  color: #f87171;
+}
+
+/* Zero Failures State (Clean/Passing) */
+.failure-kpi-card.kpi-zero-failures {
+  border-color: rgba(16, 185, 129, 0.35);
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.06) 0%, #000000 100%);
+}
+.failure-kpi-card.kpi-zero-failures .failure-kpi-icon-wrap {
+  background: rgba(16, 185, 129, 0.14);
+  border-color: rgba(16, 185, 129, 0.38);
+  color: #34d399;
+}
+.failure-kpi-card.kpi-zero-failures .failure-kpi-val {
+  color: #34d399;
 }
 
 /* ==========================================================================
@@ -2002,19 +1993,15 @@ svg {
 }
 
 @media (max-width: 520px) {
-  .scorecard-banner {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .scorecard-main {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  .metrics-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .badges-row {
+  .overview-header-row {
     flex-wrap: wrap;
+  }
+  .target-title,
+  .target-link {
+    max-width: 100%;
+  }
+  .failures-summary-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 

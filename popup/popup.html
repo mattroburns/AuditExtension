@@ -199,95 +199,66 @@
     <!-- Audit Results Dashboard (Hidden until scan finishes) -->
     <main id="results-view" class="results-view hidden">
       
-      <!-- Scorecard Banner -->
-      <section class="scorecard-banner">
-        <div class="scorecard-main">
-          <div class="score-circle-wrapper">
-            <div id="score-circle" class="score-circle">
-              <span id="score-value" class="score-val">--</span>
-              <span class="score-denom">/ 100</span>
+      <!-- Executive Overview Banner -->
+      <section class="overview-banner">
+        <div class="overview-header-row">
+          <div class="overview-page-info">
+            <h2 id="result-title" class="target-title">Target Page</h2>
+            <a id="result-url" class="target-link" href="#" target="_blank" rel="noopener" title="Open inspected URL in a new tab">https://...</a>
+          </div>
+
+          <div class="overview-actions">
+            <span class="scan-time-pill" title="Audit scan duration">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <strong id="result-duration">--s</strong>
+            </span>
+            <button id="btn-export-pdf" class="btn btn-pdf" title="Export executive accessibility audit report as PDF">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              <span>Export PDF Report</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 4 Failure Counters Grid -->
+        <div class="failures-summary-grid">
+          <div class="failure-kpi-card" id="kpi-card-wcag" data-target="section-issues" title="WCAG 2.2 accessibility rule violations (Click to inspect)">
+            <div class="failure-kpi-icon-wrap kpi-icon-wcag">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </div>
+            <div class="failure-kpi-details">
+              <span class="failure-kpi-label">WCAG Failures</span>
+              <span class="failure-kpi-val" id="kpi-wcag-count">0</span>
             </div>
           </div>
 
-          <div class="score-meta">
-            <div class="target-row">
-              <h2 id="result-title" class="target-title">Target Page</h2>
-              <a id="result-url" class="target-link" href="#" target="_blank" rel="noopener">https://...</a>
+          <div class="failure-kpi-card" id="kpi-card-links" data-target="section-links" title="Dead links, 404s, or broken anchors (Click to inspect)">
+            <div class="failure-kpi-icon-wrap kpi-icon-links">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
             </div>
-
-            <div class="badges-row">
-              <div class="pill grade-pill">
-                <span>GRADE</span>
-                <strong id="result-grade">--</strong>
-              </div>
-              <div id="result-risk-pill" class="pill risk-pill">
-                <span>RISK</span>
-                <strong id="result-risk">MODERATE</strong>
-              </div>
-              <div class="pill sr-pill">
-                <span>SCREEN READER</span>
-                <strong id="result-sr-score">--/100</strong>
-              </div>
-              <div class="pill time-pill">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                <strong id="result-duration">--s</strong>
-              </div>
+            <div class="failure-kpi-details">
+              <span class="failure-kpi-label">Link Failures</span>
+              <span class="failure-kpi-val" id="kpi-links-count">0</span>
             </div>
-
-            <p id="result-summary" class="summary-narrative">
-              Audit evaluation summary.
-            </p>
           </div>
-        </div>
 
-        <!-- Export PDF CTA -->
-        <div class="export-cta-wrapper">
-          <button id="btn-export-pdf" class="btn btn-pdf">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-            <span>Export PDF Report</span>
-          </button>
-        </div>
-      </section>
-
-      <!-- Key Metrics Counter Grid -->
-      <section class="metrics-grid">
-        <div class="metric-card card-critical">
-          <span class="metric-icon">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          </span>
-          <div>
-            <span class="metric-label">Critical</span>
-            <h3 id="metric-critical" class="metric-val">0</h3>
+          <div class="failure-kpi-card" id="kpi-card-tab" data-target="section-tabs" title="Positive tabindex or disrupted tab navigation (Click to inspect)">
+            <div class="failure-kpi-icon-wrap kpi-icon-tab">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"/><path d="m6 8 4 4-4 4"/><path d="M12 16h6"/></svg>
+            </div>
+            <div class="failure-kpi-details">
+              <span class="failure-kpi-label">Tab Failures</span>
+              <span class="failure-kpi-val" id="kpi-tab-count">0</span>
+            </div>
           </div>
-        </div>
 
-        <div class="metric-card card-serious">
-          <span class="metric-icon">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-          </span>
-          <div>
-            <span class="metric-label">Serious</span>
-            <h3 id="metric-serious" class="metric-val">0</h3>
-          </div>
-        </div>
-
-        <div class="metric-card card-moderate">
-          <span class="metric-icon">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-          </span>
-          <div>
-            <span class="metric-label">Moderate</span>
-            <h3 id="metric-moderate" class="metric-val">0</h3>
-          </div>
-        </div>
-
-        <div class="metric-card card-passed">
-          <span class="metric-icon">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
-          </span>
-          <div>
-            <span class="metric-label">Passed</span>
-            <h3 id="metric-passed" class="metric-val">0</h3>
+          <div class="failure-kpi-card" id="kpi-card-sr" data-target="section-sr" title="Screen reader communication barriers (Click to inspect)">
+            <div class="failure-kpi-icon-wrap kpi-icon-sr">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+            </div>
+            <div class="failure-kpi-details">
+              <span class="failure-kpi-label">Screen Reader Barriers</span>
+              <span class="failure-kpi-val" id="kpi-sr-count">0</span>
+            </div>
           </div>
         </div>
       </section>

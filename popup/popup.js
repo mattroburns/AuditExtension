@@ -446,8 +446,8 @@ function setupEventListeners() {
     toggleIssuesPanel();
   });
 
-  // Executive Quick-Jump Navigation Pills
-  document.querySelectorAll('.quick-pill').forEach((pill) => {
+  // Executive Quick-Jump Navigation Pills & Failure KPI Cards
+  document.querySelectorAll('.quick-pill, .failure-kpi-card').forEach((pill) => {
     pill.addEventListener('click', () => {
       const targetId = pill.getAttribute('data-target');
       if (!targetId) return;
@@ -1022,8 +1022,8 @@ function renderScorecard(audit) {
   }
   if (summary) summary.textContent = audit.summary;
 
-  // Score circle color
-  const riskClass = `risk-${audit.riskLevel.toLowerCase()}`;
+  // Score circle color (backwards compatible fallback)
+  const riskClass = `risk-${(audit.riskLevel || 'moderate').toLowerCase()}`;
   if (riskPill) {
     riskPill.className = `pill risk-pill ${riskClass}`;
   }
@@ -1036,6 +1036,81 @@ function renderScorecard(audit) {
   };
   if (circle) {
     circle.style.borderColor = borderColors[audit.riskLevel] || '#3b82f6';
+  }
+
+  // 4 Failure Counters (WCAG Failures, Link Failures, Tab Failures, Screen Reader Barriers)
+  // 1. WCAG Failures
+  const wcagFailures = (audit.violations || []).length;
+  const kpiWcagVal = document.getElementById('kpi-wcag-count');
+  const kpiWcagCard = document.getElementById('kpi-card-wcag');
+  if (kpiWcagVal) {
+    kpiWcagVal.textContent = wcagFailures === 0 ? '✓ 0' : String(wcagFailures);
+    if (kpiWcagCard) {
+      if (wcagFailures > 0) {
+        kpiWcagCard.classList.remove('kpi-zero-failures');
+        kpiWcagCard.classList.add('kpi-has-failures');
+      } else {
+        kpiWcagCard.classList.remove('kpi-has-failures');
+        kpiWcagCard.classList.add('kpi-zero-failures');
+      }
+    }
+  }
+
+  // 2. Link Failures
+  const linkAudit = audit.linkAudit;
+  const linkFailures = linkAudit ? (linkAudit.broken || 0) : 0;
+  const kpiLinkVal = document.getElementById('kpi-links-count');
+  const kpiLinkCard = document.getElementById('kpi-card-links');
+  if (kpiLinkVal) {
+    if (!linkAudit && audit.links && audit.links.length > 0) {
+      kpiLinkVal.textContent = '...';
+      kpiLinkCard?.classList.remove('kpi-has-failures', 'kpi-zero-failures');
+    } else {
+      kpiLinkVal.textContent = linkFailures === 0 ? '✓ 0' : String(linkFailures);
+      if (kpiLinkCard) {
+        if (linkFailures > 0) {
+          kpiLinkCard.classList.remove('kpi-zero-failures');
+          kpiLinkCard.classList.add('kpi-has-failures');
+        } else {
+          kpiLinkCard.classList.remove('kpi-has-failures');
+          kpiLinkCard.classList.add('kpi-zero-failures');
+        }
+      }
+    }
+  }
+
+  // 3. Tab Failures
+  const tabFailures = audit.tabOrder ? (audit.tabOrder.positiveTabIndexCount || 0) : 0;
+  const kpiTabVal = document.getElementById('kpi-tab-count');
+  const kpiTabCard = document.getElementById('kpi-card-tab');
+  if (kpiTabVal) {
+    kpiTabVal.textContent = tabFailures === 0 ? '✓ 0' : String(tabFailures);
+    if (kpiTabCard) {
+      if (tabFailures > 0) {
+        kpiTabCard.classList.remove('kpi-zero-failures');
+        kpiTabCard.classList.add('kpi-has-failures');
+      } else {
+        kpiTabCard.classList.remove('kpi-has-failures');
+        kpiTabCard.classList.add('kpi-zero-failures');
+      }
+    }
+  }
+
+  // 4. Screen Reader Barriers
+  const srFailures = (audit.speechSequence || []).filter(s => s.isBarrier).length;
+  const kpiSrVal = document.getElementById('kpi-sr-count');
+  const kpiSrCard = document.getElementById('kpi-card-sr');
+  if (kpiSrVal) {
+    kpiSrVal.textContent = srFailures === 0 ? '✓ 0' : String(srFailures);
+    if (kpiSrCard) {
+      if (srFailures > 0) {
+        kpiSrCard.classList.remove('kpi-zero-failures');
+        kpiSrCard.classList.add('kpi-has-failures');
+      } else {
+        kpiSrCard.classList.remove('kpi-has-failures');
+        kpiSrCard.classList.add('kpi-zero-failures');
+      }
+    }
   }
 
   // Screen Reader Compatibility Metrics
@@ -2406,6 +2481,27 @@ function renderLinksSection() {
     } else {
       qpLinks.textContent = String(total);
       qpLinks.style.color = 'var(--color-primary)';
+    }
+  }
+
+  // Overview Failure KPI Count
+  const kpiLinksCount = document.getElementById('kpi-links-count');
+  const kpiLinksCard = document.getElementById('kpi-card-links');
+  if (kpiLinksCount) {
+    if (!currentLinkAudit.isComplete && isLinkAuditRunning) {
+      kpiLinksCount.textContent = '...';
+      kpiLinksCard?.classList.remove('kpi-has-failures', 'kpi-zero-failures');
+    } else {
+      kpiLinksCount.textContent = broken === 0 ? '✓ 0' : String(broken);
+      if (kpiLinksCard) {
+        if (broken > 0) {
+          kpiLinksCard.classList.remove('kpi-zero-failures');
+          kpiLinksCard.classList.add('kpi-has-failures');
+        } else {
+          kpiLinksCard.classList.remove('kpi-has-failures');
+          kpiLinksCard.classList.add('kpi-zero-failures');
+        }
+      }
     }
   }
 
