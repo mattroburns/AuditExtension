@@ -106,3 +106,9 @@ A standalone Google Chrome Extension (Manifest V3) styled in an ultra-comfortabl
    - In the **Screen Reader Speech & Rotor Simulation** drawer, click any readout card or **"🎯 Locate"** to highlight that auditory element in page context.
    - Press **Escape** or click **"✕"** on the floating badge to dismiss the highlight ring.
 6. Click **"📄 Download PDF Report"** to immediately save the complete compliance report as a vector PDF.
+
+---
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for a detailed history of recent updates, UI modernizations, and report enhancements.
