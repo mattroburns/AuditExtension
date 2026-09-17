@@ -1925,11 +1925,26 @@
           }
         }
 
+        let rect = null;
+        try {
+          const el = document.querySelector(targetSelector);
+          if (el && typeof el.getBoundingClientRect === 'function') {
+            const r = el.getBoundingClientRect();
+            rect = {
+              left: Math.round(r.left),
+              top: Math.round(r.top),
+              width: Math.round(r.width),
+              height: Math.round(r.height),
+            };
+          }
+        } catch (_) {}
+
         sampleNodes.push({
           target: targetSelector,
           html: node.html ? node.html.trim().slice(0, 300) : '',
           failureSummary: node.failureSummary || v.help,
           contrastFix,
+          rect,
         });
       }
 

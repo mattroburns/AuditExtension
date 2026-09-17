@@ -579,12 +579,105 @@ function setupEventListeners() {
     toggleSrPanel();
   });
 
+  /**
+   * Generates visual thumbnails of failing elements from the page screenshot
+   * @param {Object} audit
+   */
+  async function generateElementThumbnails(audit) {
+    const shot = audit.pageScreenshot || audit.screenshot;
+    if (!shot || typeof Image === 'undefined') return;
+
+    try {
+      const img = new Image();
+      img.src = shot;
+      await new Promise((resolve) => {
+        img.onload = resolve;
+        img.onerror = resolve;
+      });
+
+      if (!img.naturalWidth || !img.naturalHeight) return;
+
+      let tabWidth = 1280;
+      try {
+        const tab = await getActiveWebTab();
+        if (tab?.width) tabWidth = tab.width;
+      } catch (_) {}
+
+      const scale = img.naturalWidth / tabWidth || 1;
+
+      for (const v of audit.violations || []) {
+        for (const node of (v.nodes || []).slice(0, 8)) {
+          if (node.rect && node.rect.width > 0 && node.rect.height > 0 && !node.screenshot) {
+            const r = node.rect;
+            const pad = 14 * scale;
+            const sx = Math.max(0, r.left * scale - pad);
+            const sy = Math.max(0, r.top * scale - pad);
+            const sw = Math.min(img.naturalWidth - sx, r.width * scale + pad * 2);
+            const sh = Math.min(img.naturalHeight - sy, r.height * scale + pad * 2);
+
+            if (sw > 10 && sh > 10) {
+              const canvas = document.createElement('canvas');
+              const maxW = 340;
+              const maxH = 170;
+              const aspect = sw / sh;
+              let dw = sw;
+              let dh = sh;
+              if (dw > maxW) {
+                dw = maxW;
+                dh = maxW / aspect;
+              }
+              if (dh > maxH) {
+                dh = maxH;
+                dw = maxH * aspect;
+              }
+              canvas.width = Math.round(dw);
+              canvas.height = Math.round(dh);
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+                // Draw bright red failure highlight box around the offending element
+                const rx = pad * (canvas.width / sw);
+                const ry = pad * (canvas.height / sh);
+                const rw = r.width * scale * (canvas.width / sw);
+                const rh = r.height * scale * (canvas.height / sh);
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = 2.5;
+                ctx.strokeRect(rx, ry, rw, rh);
+
+                node.screenshot = canvas.toDataURL('image/png');
+              }
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[Auditor] Could not generate element thumbnails:', err);
+    }
+  }
+
   // Export PDF Button
   document.getElementById('btn-export-pdf')?.addEventListener('click', async () => {
     if (!currentAudit) return;
     try {
       const btn = document.getElementById('btn-export-pdf');
       if (btn) btn.textContent = 'Generating PDF...';
+
+      // Capture active tab screenshot if available
+      if (chrome.tabs?.captureVisibleTab) {
+        try {
+          const tabShot = await chrome.tabs.captureVisibleTab(null, { format: 'png' });
+          if (tabShot) {
+            currentAudit.pageScreenshot = tabShot;
+          }
+        } catch (shotErr) {
+          console.warn('[Auditor] captureVisibleTab failed:', shotErr);
+        }
+      }
+
+      if (currentAudit.pageScreenshot) {
+        await generateElementThumbnails(currentAudit);
+      }
+
       // @ts-ignore
       await window.generateWcagPdfReport(currentAudit);
       if (btn) {

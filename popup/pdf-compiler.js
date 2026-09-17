@@ -453,6 +453,38 @@
       }
     }
 
+    // Visual Page Overview Screenshot (if captured)
+    if (auditData.pageScreenshot || auditData.screenshot) {
+      const pageShot = auditData.pageScreenshot || auditData.screenshot;
+      const shotCardW = contentWidth;
+      const shotCardH = 190;
+      ensureSpace(shotCardH + 45);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(textBright[0], textBright[1], textBright[2]);
+      doc.text('Visual Page Overview & Issue Locations', margin, secY + 10);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
+      doc.text('Captured viewport screenshot providing visual context for stakeholders and developers to locate issues.', margin, secY + 22);
+
+      const shotY = secY + 30;
+      doc.setFillColor(cardBg[0], cardBg[1], cardBg[2]);
+      doc.roundedRect(margin, shotY, shotCardW, shotCardH, 4, 4, 'F');
+      doc.setDrawColor(cardBorder[0], cardBorder[1], cardBorder[2]);
+      doc.roundedRect(margin, shotY, shotCardW, shotCardH, 4, 4, 'S');
+
+      try {
+        if (typeof doc.addImage === 'function') {
+          doc.addImage(pageShot, 'PNG', margin + 4, shotY + 4, shotCardW - 8, shotCardH - 8, undefined, 'FAST');
+        }
+      } catch (_) {}
+
+      secY = shotY + shotCardH + 18;
+    }
+
     if (wcagCount > 0) {
       (auditData.violations || []).forEach((v) => {
         const sevColor = sevColors[v.impact] || sevColors.moderate;
@@ -528,9 +560,16 @@
           const codeLines = doc.splitTextToSize(codeSnippet, contentWidth - 44).slice(0, 4);
           const codeBoxH = Math.max(34, 16 + codeLines.length * 9.5);
 
+          // Screenshots & position checks
+          const hasShot = !!(node.screenshot || node.image);
+          const shotH = hasShot ? 65 : 0;
+          const hasRect = !!(node.rect && node.rect.width > 0);
+
           // Total element card height calculation
           let itemCardH = 14 + 13 + 13; // header, location, offending html
+          if (hasRect) itemCardH += 13; // position coordinates
           if (diagText) itemCardH += 13;
+          if (hasShot) itemCardH += shotH + 20; // visual screenshot box
           itemCardH += codeBoxH + 16; // code box + padding
 
           ensureSpace(itemCardH + 10);
@@ -575,6 +614,19 @@
           doc.setTextColor(textBright[0], textBright[1], textBright[2]);
           doc.text(doc.splitTextToSize(cleanHtml, contentWidth - 85)[0] || cleanHtml, margin + 65, itemY);
 
+          if (hasRect) {
+            itemY += 13;
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(7);
+            doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
+            doc.text('Position:', margin + 12, itemY);
+
+            doc.setFont('courier', 'normal');
+            doc.setFontSize(7);
+            doc.setTextColor(textBright[0], textBright[1], textBright[2]);
+            doc.text(`X: ${node.rect.left}px, Y: ${node.rect.top}px   |   Size: ${node.rect.width}x${node.rect.height}px`, margin + 65, itemY);
+          }
+
           if (diagText) {
             itemY += 13;
             doc.setFont('helvetica', 'bold');
@@ -586,6 +638,29 @@
             doc.setFontSize(7);
             doc.setTextColor(textBright[0], textBright[1], textBright[2]);
             doc.text(doc.splitTextToSize(diagText, contentWidth - 85)[0] || diagText, margin + 65, itemY);
+          }
+
+          // Visual screenshot of the issue location
+          if (hasShot) {
+            itemY += 13;
+            const shotW = Math.min(220, contentWidth - 48);
+            doc.setFillColor(codeBg[0], codeBg[1], codeBg[2]);
+            doc.roundedRect(margin + 12, itemY, shotW + 16, shotH + 16, 3, 3, 'F');
+            doc.setDrawColor(codeBorder[0], codeBorder[1], codeBorder[2]);
+            doc.roundedRect(margin + 12, itemY, shotW + 16, shotH + 16, 3, 3, 'S');
+
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(6);
+            doc.setTextColor(accentCyan[0], accentCyan[1], accentCyan[2]);
+            doc.text('ISSUE SCREENSHOT (FAILURE LOCATION):', margin + 18, itemY + 10);
+
+            try {
+              if (typeof doc.addImage === 'function') {
+                doc.addImage(node.screenshot || node.image, 'PNG', margin + 18, itemY + 14, shotW, shotH, undefined, 'FAST');
+              }
+            } catch (_) {}
+
+            itemY += shotH + 20;
           }
 
           itemY += 12;
