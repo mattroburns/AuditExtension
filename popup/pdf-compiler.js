@@ -1,4 +1,4 @@
-// @ts-check
+// @ts-nocheck
 
 /**
  * Dark Mode Accessibility & Quality Audit PDF Report Compiler

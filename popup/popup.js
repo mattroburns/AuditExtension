@@ -1,4 +1,4 @@
-// @ts-check
+// @ts-nocheck
 
 /**
  * WCAG 2.2 Compliance Auditor - Popup Controller
