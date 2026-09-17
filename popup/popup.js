@@ -10,6 +10,11 @@ let currentAudit = null;
 let currentFilter = 'all';
 let currentTabId = null;
 
+// Link Health & Broken Link Auditor State
+let currentLinkAudit = null;
+let currentLinkFilter = 'all'; // 'all' | 'broken' | 'warning' | 'working'
+let isLinkAuditRunning = false;
+
 // Screen Reader Multi-Platform Speech Engine State
 let currentPersona = 'ios-voiceover'; // 'ios-voiceover' | 'android-talkback' | 'nvda' | 'narrator'
 let showCompareMatrix = false;
@@ -602,6 +607,44 @@ function setupEventListeners() {
     }
   });
 
+  // Link Health & Broken Link Checker Drawer Toggle
+  const linkHeader = document.getElementById('link-checker-header-toggle');
+  const linkToggleBtn = document.getElementById('link-checker-toggle-btn');
+  const linkBody = document.getElementById('link-checker-panel-body');
+
+  const toggleLinkPanel = () => {
+    if (!linkBody) return;
+    const isHidden = linkBody.classList.toggle('hidden');
+    if (linkToggleBtn) {
+      linkToggleBtn.textContent = isHidden ? '▼ View Links' : '▲ Hide Links';
+    }
+  };
+
+  linkHeader?.addEventListener('click', () => {
+    toggleLinkPanel();
+  });
+  linkToggleBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleLinkPanel();
+  });
+
+  // Re-check Links Button
+  document.getElementById('btn-recheck-links')?.addEventListener('click', () => {
+    if (currentAudit?.links) {
+      auditPageLinks(currentAudit.links, true);
+    }
+  });
+
+  // Link Filter Navigation Tabs
+  document.querySelectorAll('.link-filter-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.link-filter-btn').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentLinkFilter = btn.getAttribute('data-link-filter') || 'all';
+      renderLinkCards();
+    });
+  });
+
   // Color Blindness Lens Buttons
   document.querySelectorAll('.cvd-pill').forEach((btn) => {
     btn.addEventListener('click', async () => {
@@ -869,6 +912,12 @@ function renderScorecard(audit) {
 
   renderSpeechTimeline(audit.speechSequence || []);
   renderTabOrderSequence(audit.tabOrder);
+
+  // Link Health & Broken Link Auditor
+  initOrRenderLinkAudit(audit.links, audit.linkAudit);
+  if (audit.links && audit.links.length > 0 && (!audit.linkAudit || !audit.linkAudit.isComplete)) {
+    auditPageLinks(audit.links, false);
+  }
 
   // Key Metrics
   const mCrit = document.getElementById('metric-critical');
@@ -1771,6 +1820,490 @@ function renderTabOrderSequence(tabOrder) {
 
     cardEl.addEventListener('click', (e) => {
       if (e.target.closest('.btn-locate-tab')) return;
+      triggerLocate();
+    });
+  });
+}
+
+// =============================================================================
+// LINK HEALTH & BROKEN LINK AUDITOR
+// =============================================================================
+
+/**
+ * Initializes or updates the Link Checker UI from cached or new audit data
+ * @param {Array<Object>} [rawLinks]
+ * @param {Object} [existingAudit]
+ */
+function initOrRenderLinkAudit(rawLinks = [], existingAudit = null) {
+  if (existingAudit && existingAudit.items) {
+    currentLinkAudit = existingAudit;
+  } else if (rawLinks && rawLinks.length > 0) {
+    if (!currentLinkAudit || currentLinkAudit.items?.length === 0) {
+      currentLinkAudit = {
+        total: rawLinks.length,
+        broken: 0,
+        warning: 0,
+        working: 0,
+        items: rawLinks.map((l, i) => ({
+          ...l,
+          index: l.index || i + 1,
+          health: 'checking', // 'broken' | 'warning' | 'working' | 'checking'
+          statusCode: null,
+          statusText: 'Pending check...',
+        })),
+        isComplete: false,
+      };
+    }
+  }
+
+  renderLinksSection();
+}
+
+/**
+ * Audits all page links for HTTP status codes, broken in-page anchors, and network errors
+ * @param {Array<Object>} rawLinks
+ * @param {boolean} [forceRecheck=false]
+ */
+async function auditPageLinks(rawLinks = [], forceRecheck = false) {
+  if (!rawLinks || rawLinks.length === 0) return;
+  if (isLinkAuditRunning && !forceRecheck) return;
+
+  isLinkAuditRunning = true;
+
+  // Initialize items
+  const items = rawLinks.map((l, idx) => ({
+    ...l,
+    index: l.index || idx + 1,
+    health: 'checking',
+    statusCode: null,
+    statusText: 'Checking status...',
+  }));
+
+  currentLinkAudit = {
+    total: items.length,
+    broken: 0,
+    warning: 0,
+    working: 0,
+    items,
+    isComplete: false,
+  };
+
+  renderLinksSection();
+
+  const progressWrapper = document.getElementById('link-progress-wrapper');
+  const progressBar = document.getElementById('link-progress-bar-fill');
+  const progressLabel = document.getElementById('link-progress-label');
+  const btnRecheck = document.getElementById('btn-recheck-links');
+
+  if (btnRecheck) {
+    btnRecheck.setAttribute('disabled', 'true');
+    btnRecheck.style.opacity = '0.5';
+    btnRecheck.style.pointerEvents = 'none';
+  }
+
+  if (progressWrapper) progressWrapper.style.display = 'flex';
+  if (progressBar) {
+    progressBar.className = 'link-progress-bar-fill';
+    progressBar.style.width = '0%';
+  }
+  if (progressLabel) progressLabel.textContent = `Auditing ${items.length} links...`;
+
+  // First pass: Process static conditions (in-page anchors, empty href, protocol links)
+  const httpUrlsToFetch = new Set();
+  const urlMap = new Map(); // url -> item indices
+
+  items.forEach((item, idx) => {
+    if (item.isEmpty) {
+      item.health = 'warning';
+      item.statusCode = 0;
+      item.statusText = 'Empty or missing href attribute';
+    } else if (item.isHash) {
+      if (item.rawHref === '#' || item.rawHref === '') {
+        item.health = 'warning';
+        item.statusCode = 0;
+        item.statusText = 'Generic hash placeholder href="#"';
+      } else if (item.hashTargetExists) {
+        item.health = 'working';
+        item.statusCode = 200;
+        item.statusText = 'In-page anchor element verified in DOM';
+      } else {
+        item.health = 'broken';
+        item.statusCode = 404;
+        item.statusText = `Broken in-page anchor (target element "${item.rawHref}" not found in DOM)`;
+      }
+    } else if (item.isProtocol) {
+      if (/^javascript:/i.test(item.rawHref)) {
+        item.health = 'warning';
+        item.statusCode = 0;
+        item.statusText = 'JavaScript execution link (anti-pattern)';
+      } else {
+        item.health = 'working';
+        item.statusCode = 200;
+        item.statusText = `Protocol handler (${item.rawHref.split(':')[0]}:)`;
+      }
+    } else if (item.url && /^https?:/i.test(item.url)) {
+      httpUrlsToFetch.add(item.url);
+      if (!urlMap.has(item.url)) urlMap.set(item.url, []);
+      urlMap.get(item.url).push(idx);
+    } else {
+      item.health = 'warning';
+      item.statusCode = 0;
+      item.statusText = 'Unsupported link schema or invalid URL';
+    }
+  });
+
+  const uniqueUrls = Array.from(httpUrlsToFetch);
+  const totalHttp = uniqueUrls.length;
+  let completedHttp = 0;
+
+  /**
+   * Checks a single HTTP/HTTPS URL
+   * @param {string} url
+   */
+  async function verifyUrl(url) {
+    let result = {
+      statusCode: 0,
+      statusText: '',
+      health: 'broken',
+    };
+
+    try {
+      // First attempt: HEAD request with 6s timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+      let response;
+      try {
+        response = await fetch(url, {
+          method: 'HEAD',
+          signal: controller.signal,
+          redirect: 'follow',
+          cache: 'no-cache',
+        });
+      } catch (headErr) {
+        // Retry with GET if HEAD fails (some servers reject HEAD or return 405 Method Not Allowed)
+        if (headErr.name !== 'AbortError') {
+          const getController = new AbortController();
+          const getTimeoutId = setTimeout(() => getController.abort(), 6000);
+          try {
+            response = await fetch(url, {
+              method: 'GET',
+              signal: getController.signal,
+              redirect: 'follow',
+              headers: { Range: 'bytes=0-0' },
+              cache: 'no-cache',
+            });
+            // Abort stream body immediately to save bandwidth
+            if (response.body) {
+              try { await response.body.cancel(); } catch (_) {}
+            }
+          } finally {
+            clearTimeout(getTimeoutId);
+          }
+        } else {
+          throw headErr;
+        }
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
+      if (response) {
+        const code = response.status;
+        result.statusCode = code;
+
+        if (code >= 200 && code < 300) {
+          result.health = 'working';
+          result.statusText = `${code} ${response.statusText || 'OK'}`;
+        } else if (code >= 300 && code < 400) {
+          result.health = 'working';
+          result.statusText = `${code} Redirect`;
+        } else if (code === 404) {
+          result.health = 'broken';
+          result.statusText = '404 Not Found';
+        } else if (code === 410) {
+          result.health = 'broken';
+          result.statusText = '410 Gone';
+        } else if (code === 401 || code === 403) {
+          result.health = 'warning';
+          result.statusText = `${code} Access Restricted / Auth Required`;
+        } else if (code >= 400 && code < 500) {
+          result.health = 'broken';
+          result.statusText = `${code} ${response.statusText || 'Client Error'}`;
+        } else if (code >= 500) {
+          result.health = 'broken';
+          result.statusText = `${code} ${response.statusText || 'Server Error'}`;
+        } else {
+          result.health = 'warning';
+          result.statusText = `${code} Status Response`;
+        }
+      }
+    } catch (netErr) {
+      if (netErr.name === 'AbortError' || netErr.name === 'TimeoutError') {
+        result.statusCode = 408;
+        result.statusText = 'Request Timeout (6s response limit)';
+        result.health = 'broken';
+      } else {
+        result.statusCode = 0;
+        result.statusText = netErr.message && netErr.message.includes('Failed to fetch')
+          ? 'Network / DNS resolution error'
+          : `Connection error: ${netErr.message || 'Unknown network error'}`;
+        result.health = 'broken';
+      }
+    }
+
+    // Map result back to all link instances with this URL
+    const indices = urlMap.get(url) || [];
+    indices.forEach(idx => {
+      items[idx].statusCode = result.statusCode;
+      items[idx].statusText = result.statusText;
+      items[idx].health = result.health;
+    });
+
+    completedHttp++;
+    const percent = totalHttp > 0 ? Math.round((completedHttp / totalHttp) * 100) : 100;
+    if (progressBar) progressBar.style.width = `${percent}%`;
+    if (progressLabel) progressLabel.textContent = `Auditing links... ${completedHttp}/${totalHttp} (${percent}%)`;
+  }
+
+  // Concurrency pool (limit: 6 concurrent connections to avoid browser socket exhaustion)
+  const CONCURRENCY = 6;
+  const pool = [];
+  for (let i = 0; i < uniqueUrls.length; i++) {
+    const p = verifyUrl(uniqueUrls[i]).then(() => {
+      pool.splice(pool.indexOf(p), 1);
+    });
+    pool.push(p);
+    if (pool.length >= CONCURRENCY) {
+      await Promise.race(pool);
+    }
+  }
+  await Promise.all(pool);
+
+  // Mark complete
+  const brokenCount = items.filter(it => it.health === 'broken').length;
+  const warningCount = items.filter(it => it.health === 'warning').length;
+  const workingCount = items.filter(it => it.health === 'working').length;
+
+  currentLinkAudit = {
+    total: items.length,
+    broken: brokenCount,
+    warning: warningCount,
+    working: workingCount,
+    items,
+    isComplete: true,
+    timestamp: new Date().toISOString(),
+  };
+
+  if (currentAudit) {
+    currentAudit.linkAudit = currentLinkAudit;
+    try {
+      const storageArea = chrome.storage?.session || chrome.storage?.local;
+      if (storageArea) {
+        storageArea.set({ currentAudit });
+      }
+    } catch (_) {}
+  }
+
+  isLinkAuditRunning = false;
+
+  if (btnRecheck) {
+    btnRecheck.removeAttribute('disabled');
+    btnRecheck.style.opacity = '1';
+    btnRecheck.style.pointerEvents = 'auto';
+  }
+
+  if (progressBar) {
+    progressBar.style.width = '100%';
+    progressBar.className = brokenCount > 0 ? 'link-progress-bar-fill has-errors' : 'link-progress-bar-fill complete';
+  }
+  if (progressLabel) {
+    progressLabel.textContent = brokenCount > 0
+      ? `Audit complete: ${brokenCount} broken link${brokenCount === 1 ? '' : 's'} detected!`
+      : `Audit complete: All ${items.length} links verified successfully.`;
+  }
+
+  renderLinksSection();
+}
+
+/**
+ * Renders the Link Checker summary metrics, status badge, and filter tab counts
+ */
+function renderLinksSection() {
+  if (!currentLinkAudit) return;
+
+  const total = currentLinkAudit.total || 0;
+  const broken = currentLinkAudit.broken || 0;
+  const warning = currentLinkAudit.warning || 0;
+  const working = currentLinkAudit.working || 0;
+
+  // Header status badge
+  const badge = document.getElementById('link-checker-status-badge');
+  if (badge) {
+    badge.className = 'link-checker-status-badge';
+    if (!currentLinkAudit.isComplete && isLinkAuditRunning) {
+      badge.textContent = `Checking (${total} links)...`;
+    } else if (broken > 0) {
+      badge.classList.add('has-broken');
+      badge.textContent = `⚠️ ${broken} Broken Link${broken === 1 ? '' : 's'}`;
+    } else if (currentLinkAudit.isComplete) {
+      badge.classList.add('all-valid');
+      badge.textContent = `✓ All ${total} Links Valid`;
+    } else {
+      badge.textContent = `${total} Links`;
+    }
+  }
+
+  // Summary strip
+  const elTotal = document.getElementById('link-total-count');
+  const elBroken = document.getElementById('link-broken-count');
+  const elWarning = document.getElementById('link-warning-count');
+  const elWorking = document.getElementById('link-working-count');
+
+  if (elTotal) elTotal.textContent = String(total);
+  if (elBroken) elBroken.textContent = String(broken);
+  if (elWarning) elWarning.textContent = String(warning);
+  if (elWorking) elWorking.textContent = String(working);
+
+  // Filter tabs
+  const fAll = document.getElementById('link-count-all');
+  const fBroken = document.getElementById('link-count-broken');
+  const fWarning = document.getElementById('link-count-warning');
+  const fWorking = document.getElementById('link-count-working');
+
+  if (fAll) fAll.textContent = String(total);
+  if (fBroken) fBroken.textContent = String(broken);
+  if (fWarning) fWarning.textContent = String(warning);
+  if (fWorking) fWorking.textContent = String(working);
+
+  renderLinkCards();
+}
+
+/**
+ * Renders the list of link cards according to the current filter
+ */
+function renderLinkCards() {
+  const container = document.getElementById('link-sequence-list');
+  if (!container || !currentLinkAudit) return;
+
+  const items = currentLinkAudit.items || [];
+  const filtered = items.filter(item => {
+    if (currentLinkFilter === 'all') return true;
+    return item.health === currentLinkFilter;
+  });
+
+  if (filtered.length === 0) {
+    let emptyMsg = 'No links matching the selected filter.';
+    if (currentLinkFilter === 'broken') {
+      emptyMsg = '🎉 No broken links detected! All URLs and anchors resolved properly.';
+    } else if (currentLinkFilter === 'warning') {
+      emptyMsg = 'No link warnings or restricted endpoints detected.';
+    }
+    container.innerHTML = `
+      <div style="padding: 24px; text-align: center; color: var(--text-muted); font-size: 11.5px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="${currentLinkFilter === 'broken' ? '#10b981' : '#64748b'}" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+        <span>${escapeHtml(emptyMsg)}</span>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = filtered.map((item) => {
+    let cardClass = 'link-card';
+    let badgeClass = 'link-status-badge';
+    let badgeText = item.statusText || 'Unknown';
+
+    if (item.health === 'broken') {
+      cardClass += ' card-broken';
+      if (item.statusCode === 404) {
+        badgeClass += ' status-404';
+        badgeText = '404 NOT FOUND';
+      } else if (item.statusCode >= 500) {
+        badgeClass += ' status-500';
+        badgeText = `${item.statusCode} SERVER ERROR`;
+      } else {
+        badgeClass += ' status-error';
+        badgeText = item.statusCode ? `${item.statusCode} ERROR` : 'NETWORK ERROR';
+      }
+    } else if (item.health === 'warning') {
+      cardClass += ' card-warning';
+      badgeClass += ' status-redirect';
+      badgeText = item.statusCode ? `${item.statusCode} WARNING` : 'LINK WARNING';
+    } else if (item.health === 'working') {
+      cardClass += ' card-valid';
+      if (item.isHash) {
+        badgeClass += ' status-anchor';
+        badgeText = 'ANCHOR VALID';
+      } else {
+        badgeClass += ' status-200';
+        badgeText = item.statusCode ? `${item.statusCode} OK` : 'WORKING';
+      }
+    } else {
+      badgeClass += ' status-checking';
+      badgeText = 'CHECKING...';
+    }
+
+    const isBroken = item.health === 'broken';
+    const isExternal = item.isExternal;
+    const isBlank = item.target === '_blank';
+    const isAnchor = item.isHash;
+
+    const displayUrl = item.url || item.rawHref || '(No URL)';
+
+    return `
+      <div class="${cardClass}" data-link-index="${item.index}">
+        <div class="link-card-left">
+          <span class="${badgeClass}">${escapeHtml(badgeText)}</span>
+          <div class="link-card-info">
+            <div class="link-card-title-row">
+              <span class="link-text" title="${escapeHtml(item.text)}">${escapeHtml(item.text)}</span>
+            </div>
+            <a href="${escapeHtml(item.url || '#')}" class="link-url" target="_blank" rel="noopener noreferrer" title="${escapeHtml(displayUrl)}">
+              ${escapeHtml(displayUrl)}
+            </a>
+            <div class="link-tag-group">
+              ${isExternal ? '<span class="link-tag link-tag-external">External ↗</span>' : '<span class="link-tag">Internal</span>'}
+              ${isBlank ? '<span class="link-tag link-tag-blank">target="_blank"</span>' : ''}
+              ${isAnchor ? '<span class="link-tag link-tag-anchor">In-Page Anchor #</span>' : ''}
+            </div>
+            ${item.statusText && item.statusText !== badgeText ? `<div class="link-diag-box"><strong>Diagnostics:</strong> ${escapeHtml(item.statusText)}</div>` : ''}
+          </div>
+        </div>
+        <button type="button" class="btn-locate-link ${isBroken ? 'btn-locate-broken' : ''}" title="Locate and spotlight this link on page">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>
+          <span>Spotlight</span>
+        </button>
+      </div>
+    `;
+  }).join('');
+
+  // Attach Spotlight event listeners
+  container.querySelectorAll('.link-card').forEach((cardEl) => {
+    const idx = parseInt(cardEl.getAttribute('data-link-index') || '-1', 10);
+    const item = (currentLinkAudit.items || []).find(it => it.index === idx);
+    if (!item || !item.selector) return;
+
+    const btnSpotlight = cardEl.querySelector('.btn-locate-link');
+
+    const triggerLocate = () => {
+      highlightElementOnPage(item.selector, {
+        impact: item.health === 'broken' ? 'critical' : (item.health === 'warning' ? 'serious' : 'minor'),
+        help: item.health === 'broken'
+          ? `Broken Link (${item.statusText})`
+          : `Link: "${item.text}" → ${item.url || item.rawHref}`,
+        wcagRule: item.health === 'broken'
+          ? `WCAG 2.4.4 / 404 Error: ${item.statusText}`
+          : `WCAG 2.4.4 Link Purpose: Status ${item.statusCode || 'OK'}`,
+        target: item.selector,
+      }, btnSpotlight);
+    };
+
+    btnSpotlight?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      triggerLocate();
+    });
+
+    cardEl.addEventListener('click', (e) => {
+      if (e.target.closest('.btn-locate-link') || e.target.closest('a')) return;
       triggerLocate();
     });
   });

@@ -1762,6 +1762,111 @@
   }
 
   /**
+   * Extracts all hyperlinks from the DOM with accessible names, destination URLs,
+   * target attributes, and in-page anchor validation.
+   * @returns {Array<Object>} List of link descriptors
+   */
+  function extractPageLinks() {
+    const anchors = Array.from(document.querySelectorAll('a[href], [role="link"][href]'));
+    const results = [];
+
+    for (let i = 0; i < anchors.length; i++) {
+      const el = anchors[i];
+      const rawHref = (el.getAttribute('href') || '').trim();
+      if (!rawHref) {
+        results.push({
+          index: i + 1,
+          selector: getUniqueSelector(el),
+          rawHref: '',
+          url: '',
+          text: (el.innerText || el.textContent || el.getAttribute('aria-label') || '').trim() || '(Empty link)',
+          isHash: false,
+          hashTargetExists: false,
+          isProtocol: false,
+          isExternal: false,
+          isEmpty: true,
+          target: el.getAttribute('target') || '',
+          rel: el.getAttribute('rel') || '',
+          rect: (() => {
+            const r = el.getBoundingClientRect();
+            return { top: Math.round(r.top + window.scrollY), left: Math.round(r.left + window.scrollX), width: Math.round(r.width), height: Math.round(r.height) };
+          })(),
+        });
+        continue;
+      }
+
+      let isHash = rawHref.startsWith('#');
+      let hashTargetExists = false;
+      let isProtocol = false;
+      let isExternal = false;
+      let resolvedUrl = '';
+
+      if (isHash) {
+        const targetId = rawHref.slice(1);
+        if (targetId) {
+          try {
+            hashTargetExists = !!(document.getElementById(targetId) || document.querySelector(`[name="${CSS.escape(targetId)}"]`));
+          } catch (_) {
+            hashTargetExists = false;
+          }
+        } else {
+          hashTargetExists = false; // Just href="#"
+        }
+        resolvedUrl = window.location.href.split('#')[0] + rawHref;
+      } else if (/^(mailto|tel|sms|javascript):/i.test(rawHref)) {
+        isProtocol = true;
+        resolvedUrl = rawHref;
+      } else {
+        try {
+          const parsed = new URL(rawHref, window.location.href);
+          resolvedUrl = parsed.href;
+          isExternal = parsed.origin !== window.location.origin;
+        } catch (_) {
+          resolvedUrl = rawHref;
+        }
+      }
+
+      let text = (el.innerText || el.textContent || '').trim();
+      if (!text) {
+        text = el.getAttribute('aria-label') || el.getAttribute('title') || '';
+      }
+      if (!text) {
+        const img = el.querySelector('img[alt]');
+        if (img) text = img.getAttribute('alt') || '';
+      }
+      if (!text) {
+        text = '(Empty link text)';
+      }
+      if (text.length > 80) text = text.slice(0, 77) + '...';
+
+      const r = el.getBoundingClientRect();
+
+      results.push({
+        index: i + 1,
+        selector: getUniqueSelector(el),
+        rawHref,
+        url: resolvedUrl,
+        text,
+        isHash,
+        hashTargetExists,
+        isProtocol,
+        isExternal,
+        isEmpty: false,
+        target: el.getAttribute('target') || '',
+        rel: el.getAttribute('rel') || '',
+        rect: {
+          top: Math.round(r.top + window.scrollY),
+          left: Math.round(r.left + window.scrollX),
+          width: Math.round(r.width),
+          height: Math.round(r.height),
+        },
+      });
+    }
+
+    return results;
+  }
+
+  /**
    * Main audit execution entry point
    * @returns {Promise<Object>} Complete audit report
    */
@@ -2023,6 +2128,14 @@
       console.warn('[WCAG Auditor] Tab order evaluation notice:', tabErr);
     }
 
+    // 6. Extract Page Links for Link Integrity & Broken Link Auditor
+    let pageLinks = [];
+    try {
+      pageLinks = extractPageLinks();
+    } catch (linkErr) {
+      console.warn('[WCAG Auditor] Link extraction notice:', linkErr);
+    }
+
     // Sort violations by severity: critical first, then serious, moderate, minor
     const severityOrder = { critical: 1, serious: 2, moderate: 3, minor: 4 };
     formattedViolations.sort((a, b) => (severityOrder[a.impact] || 5) - (severityOrder[b.impact] || 5));
@@ -2045,6 +2158,7 @@
       screenReaderScore: srScore,
       speechSequence,
       tabOrder: tabOrderData,
+      links: pageLinks,
       stats: {
         totalViolations: formattedViolations.reduce((acc, v) => acc + v.affectedCount, 0),
         rulesViolatedCount: formattedViolations.length,
