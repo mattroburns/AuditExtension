@@ -25,25 +25,15 @@ chrome.runtime.onInstalled.addListener(() => {
 // Also initialize on worker startup
 setupSidePanel();
 
-// Fallback action click handler if openPanelOnActionClick needs direct trigger
+// Fallback action click handler to open side panel directly if needed
 chrome.action.onClicked.addListener(async (tab) => {
-  if (chrome.sidePanel && typeof chrome.sidePanel.open === 'function' && tab.windowId) {
+  if (chrome.sidePanel && typeof chrome.sidePanel.open === 'function' && tab?.windowId) {
     try {
       await chrome.sidePanel.open({ windowId: tab.windowId });
-      return;
     } catch (err) {
       console.warn('[AuditForge] Could not open side panel directly:', err);
     }
   }
-
-  // Fallback: Open persistent popup window if sidePanel API unavailable
-  chrome.windows.create({
-    url: chrome.runtime.getURL('popup/popup.html?mode=window'),
-    type: 'popup',
-    width: 480,
-    height: 750,
-    focused: true,
-  });
 });
 
 // Handle requests from popup to navigate tabs and wait for page completion

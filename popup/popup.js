@@ -85,7 +85,7 @@ let speechPlaybackTimer = null;
 let currentUtteranceId = 0;
 
 document.addEventListener('DOMContentLoaded', async () => {
-  setupModeControls();
+  setupTabSyncListeners();
   setupEventListeners();
   updatePersonaUI();
   populateVoiceSelect();
@@ -128,51 +128,9 @@ function showErrorView() {
 }
 
 /**
- * Initializes floating window and side panel dock controls
+ * Initializes active tab and URL synchronization listeners
  */
-function setupModeControls() {
-  const isWindowMode = window.location.search.includes('mode=window');
-  const btnPopout = document.getElementById('btn-popout');
-  const btnSidepanel = document.getElementById('btn-sidepanel');
-
-  if (isWindowMode) {
-    document.title = "Matt's QA Extension (Floating)";
-    btnPopout?.classList.add('hidden');
-    btnSidepanel?.classList.remove('hidden');
-  } else {
-    btnPopout?.classList.remove('hidden');
-    btnSidepanel?.classList.add('hidden');
-  }
-
-  btnPopout?.addEventListener('click', async () => {
-    try {
-      await chrome.windows.create({
-        url: chrome.runtime.getURL('popup/popup.html?mode=window'),
-        type: 'popup',
-        width: 520,
-        height: 780,
-        focused: true,
-      });
-      if (!isWindowMode) {
-        window.close();
-      }
-    } catch (err) {
-      console.warn('[Auditor] Failed to open popout window:', err);
-    }
-  });
-
-  btnSidepanel?.addEventListener('click', async () => {
-    try {
-      const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-      if (chrome.sidePanel && typeof chrome.sidePanel.open === 'function' && tab?.windowId) {
-        await chrome.sidePanel.open({ windowId: tab.windowId });
-        window.close();
-      }
-    } catch (err) {
-      console.warn('[Auditor] Failed to dock to side panel:', err);
-    }
-  });
-
+function setupTabSyncListeners() {
   // Keep current active tab and URL in sync when user switches tabs or navigates
   if (chrome.tabs?.onActivated) {
     chrome.tabs.onActivated.addListener(async (activeInfo) => {
@@ -272,39 +230,23 @@ function urlsMatch(urlA, urlB) {
 }
 
 /**
- * Retrieves the user's currently active web page tab across sidepanel, popup, and window modes.
+ * Retrieves the user's currently active web page tab in the host browser window.
  * @returns {Promise<chrome.tabs.Tab | null>}
  */
 async function getActiveWebTab() {
   try {
-    const isWindowMode = window.location.search.includes('mode=window');
-
-    if (isWindowMode) {
-      // In standalone window mode, prioritize active tab in the last focused normal browser window
-      const normalTabs = await chrome.tabs.query({ active: true, windowType: 'normal' });
-      const activeNormalTab = normalTabs.find(t => t.lastFocusedWindow) || normalTabs[0];
-      if (activeNormalTab && isValidWebUrl(activeNormalTab.url || activeNormalTab.pendingUrl)) {
-        return activeNormalTab;
-      }
-      const [lastFocusedTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-      if (lastFocusedTab && isValidWebUrl(lastFocusedTab.url || lastFocusedTab.pendingUrl)) {
-        return lastFocusedTab;
-      }
-    } else {
-      // In side panel or popup mode, currentWindow is the host browser window
-      const [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (currentTab && isValidWebUrl(currentTab.url || currentTab.pendingUrl)) {
-        return currentTab;
-      }
-      const [lastFocusedTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-      if (lastFocusedTab && isValidWebUrl(lastFocusedTab.url || lastFocusedTab.pendingUrl)) {
-        return lastFocusedTab;
-      }
-      const normalTabs = await chrome.tabs.query({ active: true, windowType: 'normal' });
-      const activeNormalTab = normalTabs.find(t => t.lastFocusedWindow) || normalTabs[0];
-      if (activeNormalTab && isValidWebUrl(activeNormalTab.url || activeNormalTab.pendingUrl)) {
-        return activeNormalTab;
-      }
+    const [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (currentTab && isValidWebUrl(currentTab.url || currentTab.pendingUrl)) {
+      return currentTab;
+    }
+    const [lastFocusedTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    if (lastFocusedTab && isValidWebUrl(lastFocusedTab.url || lastFocusedTab.pendingUrl)) {
+      return lastFocusedTab;
+    }
+    const normalTabs = await chrome.tabs.query({ active: true, windowType: 'normal' });
+    const activeNormalTab = normalTabs.find(t => t.lastFocusedWindow) || normalTabs[0];
+    if (activeNormalTab && isValidWebUrl(activeNormalTab.url || activeNormalTab.pendingUrl)) {
+      return activeNormalTab;
     }
   } catch (err) {
     console.warn('[Auditor] Could not determine active tab:', err);
