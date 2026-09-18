@@ -91,6 +91,25 @@
     };
   }
 
+  /**
+   * Identifies whether a given DOM element is an internal artifact of the extension UI
+   * (e.g. Tab Trail toolbar/badges, spotlight overlay, diagnostic panels, toasts, etc.)
+   * @param {Element|null} el
+   * @returns {boolean}
+   */
+  function isExtensionElement(el) {
+    if (!el || el === document.documentElement || el === document.body) return false;
+    try {
+      if (el.id && (el.id.startsWith('__auditforge') || el.id.startsWith('__af_'))) return true;
+      const cls = (typeof el.className === 'string' ? el.className : (el.getAttribute ? el.getAttribute('class') : '')) || '';
+      if (cls.includes('__auditforge') || cls.includes('__af_')) return true;
+      if (typeof el.closest === 'function') {
+        return !!el.closest('[id^="__auditforge"], [id^="__af_"], [class*="__auditforge"], [class*="__af_"]');
+      }
+    } catch (_) {}
+    return false;
+  }
+
   function getUniqueSelector(el) {
     if (el.id) return `#${CSS.escape(el.id)}`;
     let path = [];
@@ -295,6 +314,7 @@
     }
 
     const candidates = elements.filter((el) => {
+      if (isExtensionElement(el)) return false;
       const rect = el.getBoundingClientRect();
       const cs = window.getComputedStyle(el);
       return rect.width > 2 && rect.height > 2 && cs.display !== 'none' && cs.visibility !== 'hidden' && cs.opacity !== '0';
@@ -480,6 +500,7 @@
     const emptyNodes = [];
 
     for (const el of elements) {
+      if (isExtensionElement(el)) continue;
       const style = window.getComputedStyle(el);
       if (style.display === 'none' || style.visibility === 'hidden') continue;
 
@@ -785,6 +806,7 @@
     function walk(node) {
       if (results.length >= maxItems) return;
       if (!node || node.nodeType !== Node.ELEMENT_NODE) return;
+      if (isExtensionElement(node)) return;
       if (isElementHidden(node)) return;
       const tag = node.tagName.toLowerCase();
       if (['script', 'style', 'noscript', 'template'].includes(tag)) return;
@@ -1238,6 +1260,7 @@
     const rawPrefixes = /^(img_|dsc_|screenshot_|photo_|image_)/i;
 
     for (const img of images) {
+      if (isExtensionElement(img)) continue;
       const alt = (img.getAttribute('alt') || img.getAttribute('aria-label') || '').trim();
       if (!alt) continue;
 
@@ -1274,7 +1297,7 @@
     }
 
     // 2. Heading Rotor & Narrative Hierarchy (WCAG 1.3.1, 2.4.6)
-    const headings = Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, h6, [role="heading"]'));
+    const headings = Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, h6, [role="heading"]')).filter(h => !isExtensionElement(h));
     const headingNodes = [];
     const h1Elements = headings.filter(h => h.tagName.toLowerCase() === 'h1' || h.getAttribute('aria-level') === '1');
 
@@ -1342,7 +1365,7 @@
       });
     }
 
-    const navs = Array.from(document.querySelectorAll('nav, [role="navigation"]'));
+    const navs = Array.from(document.querySelectorAll('nav, [role="navigation"]')).filter(n => !isExtensionElement(n));
     if (navs.length > 1) {
       const unlabelledNavs = navs.filter(n => !n.getAttribute('aria-label') && !n.getAttribute('aria-labelledby'));
       if (unlabelledNavs.length > 0) {
@@ -1365,6 +1388,7 @@
     const hiddenFocusNodes = [];
     const ariaHiddenContainers = Array.from(document.querySelectorAll('[aria-hidden="true"]'));
     for (const container of ariaHiddenContainers) {
+      if (isExtensionElement(container)) continue;
       const focusableChildren = container.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
       for (const child of Array.from(focusableChildren).slice(0, 3)) {
         hiddenFocusNodes.push({
@@ -1389,6 +1413,7 @@
     ]);
 
     for (const link of links) {
+      if (isExtensionElement(link)) continue;
       const text = (link.innerText || '').trim().toLowerCase();
       const ariaLabel = (link.getAttribute('aria-label') || '').trim();
 
@@ -1534,6 +1559,7 @@
     const rawFocusable = [];
 
     for (const el of candidates) {
+      if (!el || isExtensionElement(el)) continue;
       if (el.hasAttribute('disabled')) continue;
       if (el.tagName === 'INPUT' && el.type === 'hidden') continue;
 
@@ -1772,6 +1798,7 @@
 
     for (let i = 0; i < anchors.length; i++) {
       const el = anchors[i];
+      if (!el || isExtensionElement(el)) continue;
       const rawHref = (el.getAttribute('href') || '').trim();
       if (!rawHref) {
         results.push({
@@ -1886,9 +1913,12 @@
    * @returns {Promise<Object>} Complete audit report
    */
   window.__runWcagAudit = async function () {
-    // 0. Ensure any simulated preview fixes are cleanly reverted before auditing genuine DOM
+    // 0. Ensure any simulated preview fixes and active extension overlays are cleanly dismissed before auditing genuine DOM
     if (typeof window.__auditforgeRevertAllFixes === 'function') {
       try { window.__auditforgeRevertAllFixes(); } catch (_) {}
+    }
+    if (typeof window.__auditforgeClearHighlight === 'function') {
+      try { window.__auditforgeClearHighlight(); } catch (_) {}
     }
 
     const startTime = performance.now();
@@ -1923,6 +1953,9 @@
       const sampleNodes = [];
       for (const node of v.nodes.slice(0, 25)) {
         const targetSelector = Array.isArray(node.target) ? node.target.join(' ') : String(node.target);
+        if (targetSelector.includes('__auditforge') || targetSelector.includes('__af_')) {
+          continue;
+        }
         let contrastFix = null;
 
         if (v.id === 'color-contrast') {
@@ -2241,6 +2274,12 @@
   window.__auditforgeHighlight = function (targetSelector, meta = {}) {
     window.__auditforgeClearHighlight();
 
+    // Reject selectors explicitly targeting extension elements
+    const rawTargetStr = typeof targetSelector === 'string' ? targetSelector.trim() : (Array.isArray(targetSelector) ? targetSelector.join(' ') : String(targetSelector || ''));
+    if (rawTargetStr.includes('__auditforge') || rawTargetStr.includes('__af_')) {
+      return { success: false, error: 'Target belongs to extension UI' };
+    }
+
     function safeEscape(str) {
       return String(str || '').replace(/[&<>"']/g, (c) => ({
         '&': '&amp;',
@@ -2253,7 +2292,12 @@
 
     function findElement(target) {
       if (!target) return null;
-      if (typeof Element !== 'undefined' && target instanceof Element) return target;
+      if (typeof Element !== 'undefined' && target instanceof Element) {
+        return isExtensionElement(target) ? null : target;
+      }
+
+      const tStr = typeof target === 'string' ? target.trim() : (Array.isArray(target) ? target.join(' ') : String(target || ''));
+      if (tStr.includes('__auditforge') || tStr.includes('__af_')) return null;
 
       // Handle array of selectors (e.g. iframe traversal from axe-core)
       if (Array.isArray(target)) {
@@ -2262,7 +2306,7 @@
         let foundEl = null;
         for (let i = 0; i < target.length; i++) {
           const sel = target[i];
-          if (!currentDoc) break;
+          if (!currentDoc || sel.includes('__auditforge') || sel.includes('__af_')) break;
           try {
             foundEl = currentDoc.querySelector(sel);
             if (foundEl && (foundEl.tagName === 'IFRAME' || foundEl.tagName === 'FRAME')) {
@@ -2270,14 +2314,14 @@
                 // @ts-ignore
                 currentDoc = foundEl.contentDocument || foundEl.contentWindow?.document;
               } catch (_) {
-                return foundEl; // Return iframe if cross-origin access blocked
+                return isExtensionElement(foundEl) ? null : foundEl; // Return iframe if cross-origin access blocked
               }
             }
           } catch (_) {
             break;
           }
         }
-        if (foundEl) return foundEl;
+        if (foundEl && !isExtensionElement(foundEl)) return foundEl;
       }
 
       const selectorStr = typeof target === 'string' ? target.trim() : String(target).trim();
@@ -2290,14 +2334,14 @@
       // 1. Direct querySelector
       try {
         const el = document.querySelector(selectorStr);
-        if (el) return el;
+        if (el && !isExtensionElement(el)) return el;
       } catch (_) {}
 
       // 2. Direct ID lookup if selector contains #id
       if (selectorStr.startsWith('#') && !selectorStr.includes(' ') && !selectorStr.includes('>') && !selectorStr.includes(':')) {
         try {
           const el = document.getElementById(selectorStr.slice(1));
-          if (el) return el;
+          if (el && !isExtensionElement(el)) return el;
         } catch (_) {}
       }
 
@@ -2305,7 +2349,7 @@
       try {
         const escaped = selectorStr.replace(/#([^\s>+~.:[\]]+)/g, (_, id) => `#${CSS.escape(id)}`);
         const el = document.querySelector(escaped);
-        if (el) return el;
+        if (el && !isExtensionElement(el)) return el;
       } catch (_) {}
 
       // 4. Terminal segment fallback (rightmost component)
@@ -2314,8 +2358,9 @@
         for (let i = parts.length - 1; i >= 0; i--) {
           try {
             const seg = parts[i];
+            if (seg.includes('__auditforge') || seg.includes('__af_')) continue;
             const el = document.querySelector(seg);
-            if (el) return el;
+            if (el && !isExtensionElement(el)) return el;
           } catch (_) {}
         }
       }
@@ -2328,7 +2373,7 @@
             const tag = tagMatch[1];
             const candidates = Array.from(document.querySelectorAll(tag));
             const snippet = meta.html.slice(0, 45);
-            const matched = candidates.find((c) => c.outerHTML && c.outerHTML.includes(snippet));
+            const matched = candidates.find((c) => !isExtensionElement(c) && c.outerHTML && c.outerHTML.includes(snippet));
             if (matched) return matched;
           }
         } catch (_) {}
@@ -2339,7 +2384,7 @@
         const queryText = (meta.text || '').trim().toLowerCase();
         if (queryText) {
           const interactives = Array.from(document.querySelectorAll('button, a, input, select, textarea, [role="button"], [role="link"], h1, h2, h3, h4, img'));
-          const matched = interactives.find((el) => ((el.innerText || el.textContent || '')).trim().toLowerCase().includes(queryText));
+          const matched = interactives.find((el) => !isExtensionElement(el) && ((el.innerText || el.textContent || '')).trim().toLowerCase().includes(queryText));
           if (matched) return matched;
         }
       }
@@ -2348,8 +2393,9 @@
     }
 
     const targetEl = findElement(targetSelector);
-    const selectorString = Array.isArray(targetSelector) ? targetSelector.join(' ') : String(targetSelector);
-    const isDocumentScope = !targetEl || targetEl === document.documentElement || targetEl === document.body || selectorString === 'html' || selectorString === 'body';
+    const selectorString = Array.isArray(targetSelector) ? targetSelector.join(' ') : String(targetSelector || '');
+    const isDocumentScope = targetEl === document.documentElement || targetEl === document.body || selectorString === 'html' || selectorString === 'body' || !selectorString;
+    const isNotFound = !targetEl && !isDocumentScope;
 
     // Palette definition
     const severityPalette = {
@@ -2565,7 +2611,7 @@
     let spotlight = null;
     let prevOutline = '';
     let prevOutlineOffset = '';
-    if (!isDocumentScope && targetEl) {
+    if (!isDocumentScope && !isNotFound && targetEl) {
       if (targetEl.style) {
         prevOutline = targetEl.style.outline;
         prevOutlineOffset = targetEl.style.outlineOffset;
@@ -2624,11 +2670,18 @@
       `;
     }
 
-    const descText = meta.description || (isDocumentScope
-      ? 'This is a page-wide architectural finding (e.g. missing landmark or heading hierarchy) applicable to the whole document structure.'
-      : 'Review the element highlighted in the spotlight on the site.');
+    let descText = meta.description;
+    if (!descText) {
+      if (isDocumentScope) {
+        descText = 'This is a page-wide architectural finding (e.g. missing landmark or heading hierarchy) applicable to the whole document structure.';
+      } else if (isNotFound) {
+        descText = 'The element could not be located on the current web page. It may have been closed, removed, or changed dynamically.';
+      } else {
+        descText = 'Review the element highlighted in the spotlight on the site.';
+      }
+    }
 
-    const recenterBtnHtml = !isDocumentScope
+    const recenterBtnHtml = (!isDocumentScope && !isNotFound)
       ? `<button type="button" class="__af_btn_action __af_btn_recenter">🎯 Re-center Spotlight</button>`
       : '';
 
@@ -2662,7 +2715,7 @@
     }
 
     function updateSpotlight() {
-      if (isDocumentScope || !targetEl || !spotlight) {
+      if (isDocumentScope || isNotFound || !targetEl || !spotlight) {
         toolbar.style.top = '50%';
         toolbar.style.left = '50%';
         toolbar.style.transform = 'translate(-50%, -50%)';

@@ -1538,7 +1538,9 @@ svg {
 
 .btn-highlight-speech.btn-located,
 .btn-highlight-element.btn-located,
-.btn-highlight-header.btn-located {
+.btn-highlight-header.btn-located,
+.btn-locate-tab.btn-located,
+.btn-locate-link.btn-located {
   background: rgba(16, 185, 129, 0.18) !important;
   border-color: #10b981 !important;
   color: #34d399 !important;

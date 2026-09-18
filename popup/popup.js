@@ -2222,16 +2222,19 @@ function renderTabOrderSequence(tabOrder) {
     const item = tabOrder.items[idx];
     if (!item || !item.selector) return;
 
+    const btnLocate = /** @type {HTMLElement|null} */ (cardEl.querySelector('.btn-locate-tab'));
+
     const triggerLocate = () => {
-      runInPageHighlight(item.selector, {
+      highlightElementOnPage(item.selector, {
         impact: item.hasPositiveTabIndex ? 'serious' : (item.hasVisualJump ? 'moderate' : 'minor'),
         help: `Tab Order Stop #${item.step} (${item.role}): ${item.name}`,
         wcagRule: item.warningText || `Tab Sequence #${item.step} (${item.tagName})`,
         target: item.selector,
-      });
+        text: item.name,
+      }, btnLocate);
     };
 
-    cardEl.querySelector('.btn-locate-tab')?.addEventListener('click', (e) => {
+    btnLocate?.addEventListener('click', (e) => {
       e.stopPropagation();
       triggerLocate();
     });
@@ -3351,6 +3354,12 @@ function renderIssuesList() {
 async function highlightElementOnPage(selector, meta = {}, triggerButton = null) {
   if (!selector) return;
 
+  const selStr = Array.isArray(selector) ? selector.join(' ') : String(selector || '');
+  if (selStr.includes('__auditforge') || selStr.includes('__af_')) {
+    console.warn("Matt's QA Extension: Rejected attempt to highlight an extension element:", selector);
+    return;
+  }
+
   const originalHtml = triggerButton ? triggerButton.innerHTML : '';
 
   try {
@@ -3412,6 +3421,12 @@ async function highlightElementOnPage(selector, meta = {}, triggerButton = null)
  * @param {Object} meta
  */
 function runInPageHighlight(targetSelector, meta = {}) {
+  // Reject selectors explicitly targeting extension elements
+  const rawTargetStr = typeof targetSelector === 'string' ? targetSelector.trim() : (Array.isArray(targetSelector) ? targetSelector.join(' ') : String(targetSelector || ''));
+  if (rawTargetStr.includes('__auditforge') || rawTargetStr.includes('__af_')) {
+    return;
+  }
+
   // @ts-ignore
   if (typeof window.__auditforgeHighlight === 'function') {
     // @ts-ignore
@@ -3430,6 +3445,19 @@ function runInPageHighlight(targetSelector, meta = {}) {
     document.getElementById('__auditforge_toast__')?.remove();
   }
 
+  function isExtensionElement(el) {
+    if (!el || el === document.documentElement || el === document.body) return false;
+    try {
+      if (el.id && (el.id.startsWith('__auditforge') || el.id.startsWith('__af_'))) return true;
+      const cls = (typeof el.className === 'string' ? el.className : (el.getAttribute ? el.getAttribute('class') : '')) || '';
+      if (cls.includes('__auditforge') || cls.includes('__af_')) return true;
+      if (typeof el.closest === 'function') {
+        return !!el.closest('[id^="__auditforge"], [id^="__af_"], [class*="__auditforge"], [class*="__af_"]');
+      }
+    } catch (_) {}
+    return false;
+  }
+
   function safeEscape(str) {
     return String(str || '').replace(/[&<>"']/g, (c) => ({
       '&': '&amp;',
@@ -3442,7 +3470,12 @@ function runInPageHighlight(targetSelector, meta = {}) {
 
   function findElement(target) {
     if (!target) return null;
-    if (typeof Element !== 'undefined' && target instanceof Element) return target;
+    if (typeof Element !== 'undefined' && target instanceof Element) {
+      return isExtensionElement(target) ? null : target;
+    }
+
+    const tStr = typeof target === 'string' ? target.trim() : (Array.isArray(target) ? target.join(' ') : String(target || ''));
+    if (tStr.includes('__auditforge') || tStr.includes('__af_')) return null;
 
     if (Array.isArray(target)) {
       if (target.length === 1) return findElement(target[0]);
@@ -3450,7 +3483,7 @@ function runInPageHighlight(targetSelector, meta = {}) {
       let foundEl = null;
       for (let i = 0; i < target.length; i++) {
         const sel = target[i];
-        if (!currentDoc) break;
+        if (!currentDoc || sel.includes('__auditforge') || sel.includes('__af_')) break;
         try {
           foundEl = currentDoc.querySelector(sel);
           if (foundEl && (foundEl.tagName === 'IFRAME' || foundEl.tagName === 'FRAME')) {
@@ -3458,14 +3491,14 @@ function runInPageHighlight(targetSelector, meta = {}) {
               // @ts-ignore
               currentDoc = foundEl.contentDocument || foundEl.contentWindow?.document;
             } catch (_) {
-              return foundEl;
+              return isExtensionElement(foundEl) ? null : foundEl;
             }
           }
         } catch (_) {
           break;
         }
       }
-      if (foundEl) return foundEl;
+      if (foundEl && !isExtensionElement(foundEl)) return foundEl;
     }
 
     const selectorStr = typeof target === 'string' ? target.trim() : String(target).trim();
@@ -3476,20 +3509,20 @@ function runInPageHighlight(targetSelector, meta = {}) {
 
     try {
       const el = document.querySelector(selectorStr);
-      if (el) return el;
+      if (el && !isExtensionElement(el)) return el;
     } catch (_) {}
 
     if (selectorStr.startsWith('#') && !selectorStr.includes(' ') && !selectorStr.includes('>') && !selectorStr.includes(':')) {
       try {
         const el = document.getElementById(selectorStr.slice(1));
-        if (el) return el;
+        if (el && !isExtensionElement(el)) return el;
       } catch (_) {}
     }
 
     try {
       const escaped = selectorStr.replace(/#([^\s>+~.:[\]]+)/g, (_, id) => `#${CSS.escape(id)}`);
       const el = document.querySelector(escaped);
-      if (el) return el;
+      if (el && !isExtensionElement(el)) return el;
     } catch (_) {}
 
     const parts = selectorStr.split(/\s*>\s*|\s+/).filter(Boolean);
@@ -3497,8 +3530,9 @@ function runInPageHighlight(targetSelector, meta = {}) {
       for (let i = parts.length - 1; i >= 0; i--) {
         try {
           const seg = parts[i];
+          if (seg.includes('__auditforge') || seg.includes('__af_')) continue;
           const el = document.querySelector(seg);
-          if (el) return el;
+          if (el && !isExtensionElement(el)) return el;
         } catch (_) {}
       }
     }
@@ -3510,7 +3544,7 @@ function runInPageHighlight(targetSelector, meta = {}) {
           const tag = tagMatch[1];
           const candidates = Array.from(document.querySelectorAll(tag));
           const snippet = meta.html.slice(0, 45);
-          const matched = candidates.find((c) => c.outerHTML && c.outerHTML.includes(snippet));
+          const matched = candidates.find((c) => !isExtensionElement(c) && c.outerHTML && c.outerHTML.includes(snippet));
           if (matched) return matched;
         }
       } catch (_) {}
@@ -3520,7 +3554,7 @@ function runInPageHighlight(targetSelector, meta = {}) {
       const queryText = (meta.text || '').trim().toLowerCase();
       if (queryText) {
         const interactives = Array.from(document.querySelectorAll('button, a, input, select, textarea, [role="button"], [role="link"], h1, h2, h3, h4, img'));
-        const matched = interactives.find((el) => ((el.innerText || el.textContent || '')).trim().toLowerCase().includes(queryText));
+        const matched = interactives.find((el) => !isExtensionElement(el) && ((el.innerText || el.textContent || '')).trim().toLowerCase().includes(queryText));
         if (matched) return matched;
       }
     }
