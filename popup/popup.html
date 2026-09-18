@@ -253,39 +253,9 @@
         </div>
       </section>
 
-      <!-- Executive Quick-Jump Health Bar -->
-      <nav class="sections-quickbar" aria-label="Audit sections navigation">
-        <div class="quickbar-nav">
-          <span class="quickbar-label">SECTIONS:</span>
-          <div class="quickbar-pills">
-            <button type="button" class="quick-pill" data-target="section-issues" id="qp-issues" title="Jump to WCAG Issues Table">
-              <span class="qp-icon">🔴</span>
-              <span class="qp-text">Issues</span>
-              <span class="qp-badge" id="qp-issues-count">0</span>
-            </button>
-            <button type="button" class="quick-pill" data-target="section-links" id="qp-links" title="Jump to Link Health Checker">
-              <span class="qp-icon">🔗</span>
-              <span class="qp-text">Links</span>
-              <span class="qp-badge" id="qp-links-count">0</span>
-            </button>
-            <button type="button" class="quick-pill" data-target="section-tabs" id="qp-tabs" title="Jump to Tab Navigation Order">
-              <span class="qp-icon">⌨️</span>
-              <span class="qp-text">Tab Order</span>
-              <span class="qp-badge" id="qp-tabs-count">0</span>
-            </button>
-            <button type="button" class="quick-pill" data-target="section-sr" id="qp-sr" title="Jump to Screen Reader Speech Simulator">
-              <span class="qp-icon">🔊</span>
-              <span class="qp-text">VoiceOver</span>
-              <span class="qp-badge" id="qp-sr-score">--</span>
-            </button>
-            <button type="button" class="quick-pill" data-target="section-cvd" id="qp-cvd" title="Jump to Vision Simulation Drawer">
-              <span class="qp-icon">👁️</span>
-              <span class="qp-text">Vision</span>
-            </button>
-          </div>
-        </div>
-
-        <div class="quickbar-actions">
+      <!-- Bulk Drawer Controls -->
+      <div class="drawers-bulk-bar">
+        <div class="bulk-actions-group">
           <button type="button" id="btn-expand-all" class="btn-drawer-bulk" title="Expand all collapsible sections">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="7 13 12 18 17 13"/><polyline points="7 6 12 11 17 6"/></svg>
             <span>Expand All</span>
@@ -295,7 +265,7 @@
             <span>Collapse All</span>
           </button>
         </div>
-      </nav>
+      </div>
 
       <!-- 1. WCAG Issues Table & Technical Fixes Drawer -->
       <section class="issues-section" id="section-issues">

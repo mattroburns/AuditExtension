@@ -16,6 +16,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Enforced `flex-shrink: 0`, `margin-left: auto`, and `white-space: nowrap` on all badge groups, status/score badges, and toggle buttons to preserve their layout integrity.
   - Added native `title="..."` tooltip attributes to all drawer subtitles for easy reading on hover when truncated.
   - Added responsive padding adjustments in the `<= 520px` media query.
+- **Removed Redundant "Sections" Quickbar**:
+  - Removed the duplicate `SECTIONS:` navigation bar and pill buttons, relying on the top Failure KPI cards as the primary section navigation.
+  - Preserved `Expand All` and `Collapse All` drawer bulk controls in a compact right-aligned toolbar directly above the drawers.
 
 ## [1.2.0] - 2026-09-17
 

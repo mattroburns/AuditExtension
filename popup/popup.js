@@ -459,8 +459,8 @@ function setupEventListeners() {
     toggleIssuesPanel();
   });
 
-  // Executive Quick-Jump Navigation Pills & Failure KPI Cards
-  document.querySelectorAll('.quick-pill, .failure-kpi-card').forEach((pill) => {
+  // Executive Failure KPI Cards Drawer Jump
+  document.querySelectorAll('.failure-kpi-card').forEach((pill) => {
     pill.addEventListener('click', () => {
       const targetId = pill.getAttribute('data-target');
       if (!targetId) return;
@@ -1327,9 +1327,8 @@ function renderScorecard(audit) {
   if (tabSer) tabSer.textContent = String(audit.violations.filter(v => v.impact === 'serious').length);
   if (tabMod) tabMod.textContent = String(audit.violations.filter(v => v.impact === 'moderate').length);
 
-  // Update Issues Collapsible Drawer Status Badge & Quickbar
+  // Update Issues Collapsible Drawer Status Badge
   const issuesBadge = document.getElementById('issues-status-badge');
-  const qpIssues = document.getElementById('qp-issues-count');
   const violationCount = (audit.violations || []).length;
   if (issuesBadge) {
     if (violationCount === 0) {
@@ -1344,15 +1343,6 @@ function renderScorecard(audit) {
       issuesBadge.style.background = 'rgba(244, 63, 94, 0.18)';
     }
   }
-  if (qpIssues) qpIssues.textContent = String(violationCount);
-
-  // Tab Order Quickbar Count
-  const qpTabs = document.getElementById('qp-tabs-count');
-  if (qpTabs) qpTabs.textContent = String(audit.tabOrder?.elements?.length || 0);
-
-  // Screen Reader Quickbar Score
-  const qpSr = document.getElementById('qp-sr-score');
-  if (qpSr) qpSr.textContent = `${srScore}/100`;
 }
 
 /**
@@ -2595,17 +2585,6 @@ function renderLinksSection() {
   if (fWarning) fWarning.textContent = String(warning);
   if (fWorking) fWorking.textContent = String(working);
 
-  // Quickbar Links Count
-  const qpLinks = document.getElementById('qp-links-count');
-  if (qpLinks) {
-    if (broken > 0) {
-      qpLinks.textContent = `${broken} ⚠️`;
-      qpLinks.style.color = '#f87171';
-    } else {
-      qpLinks.textContent = String(total);
-      qpLinks.style.color = 'var(--color-primary)';
-    }
-  }
 
   // Overview Failure KPI Count
   const kpiLinksCount = document.getElementById('kpi-links-count');
