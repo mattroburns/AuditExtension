@@ -602,13 +602,14 @@
           const codeBoxH = Math.max(34, 16 + codeLines.length * 9.5);
 
           // Screenshots & position checks with aspect ratio preservation
-          const hasShot = !!(node.screenshot || node.image);
+          const isPageLevel = ['html', 'body', ':root'].includes(cleanTarget.toLowerCase());
+          const hasShot = !isPageLevel && !!(node.screenshot || node.image);
           let elemThumbW = 0;
           let elemThumbH = 0;
           let elemBoxH = 0;
 
           if (hasShot) {
-            let elemAspect = 2.2;
+            let elemAspect = 2.4;
             if (node.screenshotWidth && node.screenshotHeight) {
               elemAspect = node.screenshotWidth / node.screenshotHeight;
             } else if (node.rect && node.rect.width > 0 && node.rect.height > 0) {
@@ -632,20 +633,25 @@
               } catch (_) {}
             }
 
-            const maxThumbW = Math.min(260, contentWidth - 48);
-            const maxThumbH = 80;
+            const containerW = contentWidth - 24;
+            const maxThumbW = Math.min(380, containerW - 24);
+            const maxThumbH = 110;
             elemThumbW = maxThumbW;
             elemThumbH = elemThumbW / elemAspect;
             if (elemThumbH > maxThumbH) {
               elemThumbH = maxThumbH;
               elemThumbW = elemThumbH * elemAspect;
             }
+            if (elemThumbW > maxThumbW) {
+              elemThumbW = maxThumbW;
+              elemThumbH = elemThumbW / elemAspect;
+            }
             elemThumbW = Math.round(elemThumbW);
             elemThumbH = Math.round(elemThumbH);
-            elemBoxH = elemThumbH + 22;
+            elemBoxH = elemThumbH + 26;
           }
 
-          const hasRect = !!(node.rect && node.rect.width > 0);
+          const hasRect = !isPageLevel && !!(node.rect && node.rect.width > 0);
 
           // Total element card height calculation
           let itemCardH = 14 + 13 + 13; // header, location, offending html
@@ -725,7 +731,7 @@
           // Visual screenshot of the issue location
           if (hasShot) {
             itemY += 13;
-            const containerW = elemThumbW + 16;
+            const containerW = contentWidth - 24;
             const containerH = elemBoxH;
             doc.setFillColor(codeBg[0], codeBg[1], codeBg[2]);
             doc.roundedRect(margin + 12, itemY, containerW, containerH, 3, 3, 'F');
@@ -737,9 +743,13 @@
             doc.setTextColor(accentCyan[0], accentCyan[1], accentCyan[2]);
             doc.text('ISSUE SCREENSHOT (FAILURE LOCATION):', margin + 18, itemY + 10);
 
+            // Horizontally center image in container
+            const imgX = Math.round(margin + 12 + (containerW - elemThumbW) / 2);
+            const imgY = itemY + 15;
+
             try {
               if (typeof doc.addImage === 'function') {
-                doc.addImage(node.screenshot || node.image, 'PNG', margin + 20, itemY + 15, elemThumbW, elemThumbH, undefined, 'FAST');
+                doc.addImage(node.screenshot || node.image, 'PNG', imgX, imgY, elemThumbW, elemThumbH, undefined, 'FAST');
               }
             } catch (_) {}
 

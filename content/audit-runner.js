@@ -523,12 +523,16 @@
       const role = el.getAttribute('role') || tag;
       const isInteractive = isUserInterfaceComponent(el, tag, role);
       const visibleText = isInteractive ? getVisibleLabelText(el, tag) : (el.innerText || el.textContent || '').trim();
+      const focalRes = getFocalTarget(el);
+      const nodeRect = focalRes ? focalRes.rect : null;
 
       // Check 1: Empty or whitespace-only aria-label
       if (el.hasAttribute('aria-label') && !resolvedLabel) {
         emptyNodes.push({
           target: selector,
           html,
+          rect: nodeRect,
+          focalRect: nodeRect,
           failureSummary: 'Element has an aria-label attribute that is empty or contains only whitespace.',
           ariaDetails: {
             ariaLabel: '""',
@@ -547,6 +551,8 @@
         genericNodes.push({
           target: selector,
           html,
+          rect: nodeRect,
+          focalRect: nodeRect,
           failureSummary: `Accessible name "${resolvedLabel}" is too generic or non-descriptive to convey the purpose to screen reader users (WCAG 2.4.6 / 4.1.2).`,
           ariaDetails: {
             ariaLabel: resolvedLabel,
@@ -576,6 +582,8 @@
           redundantRoleNodes.push({
             target: selector,
             html,
+            rect: nodeRect,
+            focalRect: nodeRect,
             failureSummary: `Accessible name "${resolvedLabel}" redundantly repeats the element role "${p.roleWord}". Screen readers announce the role natively.`,
             ariaDetails: {
               ariaLabel: resolvedLabel,
@@ -599,6 +607,8 @@
             nameMismatchNodes.push({
               target: selector,
               html,
+              rect: nodeRect,
+              focalRect: nodeRect,
               failureSummary: `WCAG 2.2 SC 2.5.3 Failure (Label in Name): Visible text "${visibleText}" is missing from accessible name "${resolvedLabel}". Speech-to-text users calling out the visible label will fail to activate this control.`,
               ariaDetails: {
                 ariaLabel: resolvedLabel,
@@ -656,6 +666,8 @@
                 iconMismatchNodes.push({
                   target: selector,
                   html,
+                  rect: nodeRect,
+                  focalRect: nodeRect,
                   failureSummary: `Accessible label "${resolvedLabel}" contradicts visual meaning of the embedded icon. Icon indicates: ${rule.expected}.`,
                   ariaDetails: {
                     ariaLabel: resolvedLabel,
@@ -1283,9 +1295,12 @@
           recommended = 'Describe the image content rather than pasting the image link';
         }
 
+        const fImg = getFocalTarget(img);
         altQualityNodes.push({
           target: getUniqueSelector(img),
           html: img.outerHTML.slice(0, 300),
+          rect: fImg.rect,
+          focalRect: fImg.rect,
           failureSummary: diagnosis,
           srDetails: {
             currentText: alt,
@@ -1302,9 +1317,12 @@
     const h1Elements = headings.filter(h => h.tagName.toLowerCase() === 'h1' || h.getAttribute('aria-level') === '1');
 
     if (h1Elements.length === 0 && headings.length > 0) {
+      const fH1 = getFocalTarget(headings[0]);
       headingNodes.push({
         target: getUniqueSelector(headings[0]),
         html: headings[0].outerHTML.slice(0, 300),
+        rect: fH1.rect,
+        focalRect: fH1.rect,
         failureSummary: 'Document is missing a top-level <h1> heading. Screen reader users navigating by heading rotor cannot discern the primary subject of the page.',
         srDetails: {
           currentText: '(Missing <h1>)',
@@ -1321,9 +1339,12 @@
       const text = (h.innerText || h.textContent || '').trim();
 
       if (!text) {
+        const fEmpty = getFocalTarget(h);
         headingNodes.push({
           target: getUniqueSelector(h),
           html: h.outerHTML.slice(0, 300),
+          rect: fEmpty.rect,
+          focalRect: fEmpty.rect,
           failureSummary: `Empty <${tag}> heading found. Screen reader announces empty heading level without readable content.`,
           srDetails: {
             currentText: `Empty <${tag}>`,
@@ -1335,9 +1356,12 @@
       }
 
       if (prevLevel > 0 && level > prevLevel + 1) {
+        const fJump = getFocalTarget(h);
         headingNodes.push({
           target: getUniqueSelector(h),
           html: h.outerHTML.slice(0, 300),
+          rect: fJump.rect,
+          focalRect: fJump.rect,
           failureSummary: `Skipped heading level: <${tag}> (level ${level}) follows level ${prevLevel}. Screen reader users navigating headings will assume an entire preceding section was missed.`,
           srDetails: {
             currentText: `"${text}" (<${tag}>)`,
@@ -1370,9 +1394,12 @@
       const unlabelledNavs = navs.filter(n => !n.getAttribute('aria-label') && !n.getAttribute('aria-labelledby'));
       if (unlabelledNavs.length > 0) {
         unlabelledNavs.forEach(nav => {
+          const fNav = getFocalTarget(nav);
           landmarkNodes.push({
             target: getUniqueSelector(nav),
             html: nav.outerHTML.slice(0, 300),
+            rect: fNav.rect,
+            focalRect: fNav.rect,
             failureSummary: 'Multiple navigation landmarks exist without unique aria-label attributes. Screen reader announces "navigation" for both, leaving users unable to differentiate primary from secondary navigation.',
             srDetails: {
               currentText: '<nav>',
@@ -1391,9 +1418,12 @@
       if (isExtensionElement(container)) continue;
       const focusableChildren = container.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
       for (const child of Array.from(focusableChildren).slice(0, 3)) {
+        const fChild = getFocalTarget(child);
         hiddenFocusNodes.push({
           target: getUniqueSelector(child),
           html: child.outerHTML.slice(0, 300),
+          rect: fChild.rect,
+          focalRect: fChild.rect,
           failureSummary: 'Interactive focusable element is nested inside a container with aria-hidden="true". Keyboard focus will land on this control, but the screen reader will remain completely silent.',
           srDetails: {
             currentText: child.outerHTML.slice(0, 60),
@@ -1418,9 +1448,12 @@
       const ariaLabel = (link.getAttribute('aria-label') || '').trim();
 
       if (vaguePhrases.has(text) && !ariaLabel) {
+        const fLink = getFocalTarget(link);
         ambiguousLinkNodes.push({
           target: getUniqueSelector(link),
           html: link.outerHTML.slice(0, 300),
+          rect: fLink.rect,
+          focalRect: fLink.rect,
           failureSummary: `Link text "${text}" is ambiguous without contextual aria-label. Screen reader "Links List" will display isolated repetitive "${text}" entries.`,
           srDetails: {
             currentText: `"${text}"`,
@@ -1545,6 +1578,90 @@
         left: Math.round(Math.max(0, rect.left)),
         width: Math.round(rect.width),
         height: Math.round(rect.height),
+      }
+    };
+  }
+
+  /**
+   * Resolves the focal visual sub-target and bounding rect for an issue.
+   * For wide or oversized container elements (e.g. 1280px wide card-headers, accordion-headers,
+   * form-groups, or rows), this finds the core text/control child (button, heading, label, input, title)
+   * so screenshot cropping centers on the exact area of the issue rather than shrinking an entire row.
+   * @param {Element} el
+   * @returns {{ element: Element, rect: { top: number, left: number, width: number, height: number } }}
+   */
+  function getFocalTarget(el) {
+    if (!el || typeof el.getBoundingClientRect !== 'function') {
+      return { element: el, rect: { top: 0, left: 0, width: 0, height: 0 } };
+    }
+
+    // 1. Resolve visual target if element is off-screen/hidden (e.g. native radio/checkbox)
+    const resolved = resolveVisualTarget(el);
+    const baseEl = resolved.visualElement || el;
+    const baseRect = resolved.rect || baseEl.getBoundingClientRect();
+
+    // 2. If already compact (<= 450px wide and <= 250px high), it's already a focused target
+    if (baseRect.width > 0 && baseRect.width <= 450 && baseRect.height > 0 && baseRect.height <= 250) {
+      return {
+        element: baseEl,
+        rect: {
+          top: Math.round(baseRect.top),
+          left: Math.round(baseRect.left),
+          width: Math.round(baseRect.width),
+          height: Math.round(baseRect.height),
+        }
+      };
+    }
+
+    // 3. For wide or tall containers (card-header, accordion-header, form-group, row, etc.),
+    // find the primary focal content child (heading, button, label, control, text title)
+    try {
+      const focalCandidate = baseEl.querySelector(
+        'button, h1, h2, h3, h4, h5, h6, [role="heading"], [role="button"], label, input, select, textarea, a, .accordion-title, .card-title, .title, legend, strong, b'
+      );
+      if (focalCandidate) {
+        const cRect = focalCandidate.getBoundingClientRect();
+        if (cRect.width > 10 && cRect.height > 10 && cRect.width < baseRect.width) {
+          return {
+            element: focalCandidate,
+            rect: {
+              top: Math.round(cRect.top),
+              left: Math.round(cRect.left),
+              width: Math.round(cRect.width),
+              height: Math.round(cRect.height),
+            }
+          };
+        }
+      }
+
+      // Check for non-empty direct text node
+      const range = document.createRange();
+      for (const child of baseEl.childNodes) {
+        if (child.nodeType === Node.TEXT_NODE && child.textContent.trim().length > 0) {
+          range.selectNodeContents(child);
+          const tRect = range.getBoundingClientRect();
+          if (tRect.width > 10 && tRect.height > 10) {
+            return {
+              element: baseEl,
+              rect: {
+                top: Math.round(tRect.top),
+                left: Math.round(tRect.left),
+                width: Math.round(tRect.width),
+                height: Math.round(tRect.height),
+              }
+            };
+          }
+        }
+      }
+    } catch (_) {}
+
+    return {
+      element: baseEl,
+      rect: {
+        top: Math.round(baseRect.top),
+        left: Math.round(baseRect.left),
+        width: Math.round(Math.min(baseRect.width, 450)),
+        height: Math.round(baseRect.height),
       }
     };
   }
@@ -1969,8 +2086,14 @@
         }
 
         let rect = null;
+        let focalRect = null;
         try {
-          const el = document.querySelector(targetSelector);
+          let el = null;
+          try { el = document.querySelector(targetSelector); } catch (_) {}
+          if (!el && targetSelector.includes('#')) {
+            const idMatch = targetSelector.match(/#([a-zA-Z0-9_-]+)/);
+            if (idMatch) el = document.getElementById(idMatch[1]);
+          }
           if (el && typeof el.getBoundingClientRect === 'function') {
             const r = el.getBoundingClientRect();
             rect = {
@@ -1979,6 +2102,10 @@
               width: Math.round(r.width),
               height: Math.round(r.height),
             };
+            const f = getFocalTarget(el);
+            if (f && f.rect) {
+              focalRect = f.rect;
+            }
           }
         } catch (_) {}
 
@@ -1988,6 +2115,7 @@
           failureSummary: node.failureSummary || v.help,
           contrastFix,
           rect,
+          focalRect,
         });
       }
 

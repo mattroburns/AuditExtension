@@ -581,84 +581,389 @@ function setupEventListeners() {
   });
 
   /**
-   * Generates visual thumbnails of failing elements from the page screenshot
+   * Helper: Loads an image source into an Image object
+   * @param {string} src
+   * @returns {Promise<HTMLImageElement|null>}
+   */
+  function loadHtmlImage(src) {
+    return new Promise((resolve) => {
+      if (!src) return resolve(null);
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = src;
+    });
+  }
+
+  /**
+   * Crops a centered, focused thumbnail of an issue location from a full or partial screenshot.
+   * Ensures the focal element (text, heading, button, or input) is centered in the canvas
+   * with balanced surrounding padding and a crisp failure highlight box.
+   */
+  function cropFocalThumbnail(img, focalRect, viewportW, viewportH) {
+    if (!img || !img.naturalWidth || !img.naturalHeight || !focalRect) return null;
+    if (focalRect.width <= 0 || focalRect.height <= 0) return null;
+
+    const vW = Math.max(320, viewportW || 1280);
+    const vH = Math.max(320, viewportH || 800);
+    const dpr = img.naturalWidth / vW || 1;
+
+    // Focal element center coordinates in viewport CSS pixels
+    const fCenterX = focalRect.left + focalRect.width / 2;
+    const fCenterY = focalRect.top + focalRect.height / 2;
+
+    // Desired crop dimensions in CSS pixels (generous context without squashing)
+    const targetCropW = Math.max(focalRect.width + 100, 440);
+    const targetCropH = Math.max(focalRect.height + 65, 150);
+
+    const cropW = Math.min(vW, targetCropW);
+    const cropH = Math.min(vH, targetCropH);
+
+    // Center the crop window around the focal point
+    let cropX = fCenterX - cropW / 2;
+    let cropY = fCenterY - cropH / 2;
+
+    // Keep crop window strictly inside the viewport bounds
+    if (cropX < 0) cropX = 0;
+    if (cropX + cropW > vW) cropX = Math.max(0, vW - cropW);
+    if (cropY < 0) cropY = 0;
+    if (cropY + cropH > vH) cropY = Math.max(0, vH - cropH);
+
+    // Convert CSS coordinates to physical image pixels
+    const sx = Math.max(0, Math.min(img.naturalWidth - 1, Math.round(cropX * dpr)));
+    const sy = Math.max(0, Math.min(img.naturalHeight - 1, Math.round(cropY * dpr)));
+    const sw = Math.max(10, Math.min(img.naturalWidth - sx, Math.round(cropW * dpr)));
+    const sh = Math.max(10, Math.min(img.naturalHeight - sy, Math.round(cropH * dpr)));
+
+    if (sw < 10 || sh < 10) return null;
+
+    // Create high-res canvas (440px max width maintains sharp text in PDF)
+    const canvas = document.createElement('canvas');
+    const maxCanvasW = 440;
+    const maxCanvasH = 180;
+    const aspect = sw / sh;
+    let dw = maxCanvasW;
+    let dh = dw / aspect;
+    if (dh > maxCanvasH) {
+      dh = maxCanvasH;
+      dw = dh * aspect;
+    }
+    canvas.width = Math.round(dw);
+    canvas.height = Math.round(dh);
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    // Draw the cropped region
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+
+    // Relative coordinates of focal element in the cropped image
+    const actualCropX = sx / dpr;
+    const actualCropY = sy / dpr;
+    const actualCropW = sw / dpr;
+    const actualCropH = sh / dpr;
+
+    const scaleX = canvas.width / actualCropW;
+    const scaleY = canvas.height / actualCropH;
+
+    const highlightX = Math.round((focalRect.left - actualCropX) * scaleX);
+    const highlightY = Math.round((focalRect.top - actualCropY) * scaleY);
+    const highlightW = Math.round(focalRect.width * scaleX);
+    const highlightH = Math.round(focalRect.height * scaleY);
+
+    // Draw subtle failure highlight tint & crisp red stroke around offending control
+    ctx.fillStyle = 'rgba(239, 68, 68, 0.12)';
+    ctx.fillRect(highlightX, highlightY, highlightW, highlightH);
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 2.5;
+    ctx.strokeRect(highlightX, highlightY, highlightW, highlightH);
+
+    return {
+      dataUrl: canvas.toDataURL('image/png'),
+      width: canvas.width,
+      height: canvas.height,
+    };
+  }
+
+  /**
+   * Generates visual thumbnails of failing elements from the page screenshot.
+   * Handles elements both in the current viewport and scrolled down the page,
+   * centering precisely on the focal issue (text, button, or input) and avoiding
+   * squashing or distorting oversized containers.
    * @param {Object} audit
    */
   async function generateElementThumbnails(audit) {
-    const shot = audit.pageScreenshot || audit.screenshot;
-    if (!shot || typeof Image === 'undefined') return;
+    if (!audit || !audit.violations) return;
 
+    let tab = null;
     try {
-      const img = new Image();
-      img.src = shot;
-      await new Promise((resolve) => {
-        img.onload = resolve;
-        img.onerror = resolve;
-      });
+      tab = await getActiveWebTab();
+    } catch (_) {}
 
-      if (!img.naturalWidth || !img.naturalHeight) return;
+    // Collect failing nodes that need visual thumbnails
+    // Skip page-level targets like html, body, :root
+    const nodesToCapture = [];
+    for (const v of audit.violations || []) {
+      for (const node of (v.nodes || []).slice(0, 4)) {
+        const target = String(node.target || '').toLowerCase().trim();
+        if (target === 'html' || target === 'body' || target === ':root' || !target) continue;
+        if (!node.screenshot) {
+          nodesToCapture.push(node);
+        }
+      }
+    }
 
-      audit.pageScreenshotWidth = img.naturalWidth;
-      audit.pageScreenshotHeight = img.naturalHeight;
-      audit.pageScreenshotAspect = img.naturalWidth / img.naturalHeight;
+    if (nodesToCapture.length === 0) return;
 
-      let tabWidth = 1280;
+    // Phase 1: Try live tab scrolling and capturing if tab is accessible
+    if (tab?.id && chrome.scripting?.executeScript && chrome.tabs?.captureVisibleTab) {
       try {
-        const tab = await getActiveWebTab();
-        if (tab?.width) tabWidth = tab.width;
+        // Record original user scroll position so we can restore it completely
+        const [origScrollRes] = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: () => ({ x: window.scrollX, y: window.scrollY }),
+        });
+        const origScroll = origScrollRes?.result || { x: 0, y: 0 };
+
+        try {
+          // Capture current visible tab first
+          let currentShot = null;
+          try {
+            currentShot = await chrome.tabs.captureVisibleTab(null, { format: 'png' });
+          } catch (_) {}
+
+          let loadedCurrentImg = currentShot ? await loadHtmlImage(currentShot) : null;
+          let lastCaptureTime = Date.now();
+          let scrollCapturesDone = 0;
+
+          for (const node of nodesToCapture) {
+            if (node.screenshot) continue;
+
+            // Query element and focal bounds in active tab
+            const [infoRes] = await chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              args: [node.target],
+              func: (selector) => {
+                let el = null;
+                try { el = document.querySelector(selector); } catch (_) {}
+                if (!el && selector.includes('#')) {
+                  const idMatch = selector.match(/#([a-zA-Z0-9_-]+)/);
+                  if (idMatch) el = document.getElementById(idMatch[1]);
+                }
+                if (!el) return null;
+
+                // Resolve visual target for off-screen/hidden inputs
+                const r = el.getBoundingClientRect();
+                let visualEl = el;
+                if (r.width <= 2 || r.height <= 2 || r.left < -20 || r.top < -20) {
+                  if (el.labels && el.labels.length > 0) {
+                    visualEl = el.labels[0];
+                  } else if (el.closest('label')) {
+                    visualEl = el.closest('label');
+                  } else if (el.closest('.form-check, .radio-card, .option-card, .field-wrapper')) {
+                    visualEl = el.closest('.form-check, .radio-card, .option-card, .field-wrapper');
+                  }
+                }
+
+                // Check for compact content child inside wide containers
+                let focalEl = visualEl;
+                const vr = visualEl.getBoundingClientRect();
+                if (vr.width > 450) {
+                  const contentChild = visualEl.querySelector(
+                    'button, h1, h2, h3, h4, h5, h6, [role="heading"], [role="button"], label, input, select, textarea, a, .accordion-title, .card-title, .title, p, span, strong, b'
+                  );
+                  if (contentChild) {
+                    const cr = contentChild.getBoundingClientRect();
+                    if (cr.width > 10 && cr.height > 10 && cr.width < vr.width) {
+                      focalEl = contentChild;
+                    }
+                  }
+                }
+
+                const fr = focalEl.getBoundingClientRect();
+                const inVp = fr.top >= 30 && fr.bottom <= (window.innerHeight - 30) && fr.left >= 0 && fr.right <= window.innerWidth;
+
+                return {
+                  inViewport: inVp,
+                  rect: {
+                    left: Math.round(fr.left),
+                    top: Math.round(fr.top),
+                    width: Math.round(fr.width),
+                    height: Math.round(fr.height),
+                  },
+                  viewport: {
+                    width: window.innerWidth,
+                    height: window.innerHeight,
+                    dpr: window.devicePixelRatio || 1,
+                  }
+                };
+              }
+            });
+
+            const focalInfo = infoRes?.result;
+            if (!focalInfo) continue;
+
+            // If it is in the current viewport and we have a valid screenshot, crop directly!
+            if (focalInfo.inViewport && loadedCurrentImg) {
+              const res = cropFocalThumbnail(loadedCurrentImg, focalInfo.rect, focalInfo.viewport.width, focalInfo.viewport.height);
+              if (res) {
+                node.screenshot = res.dataUrl;
+                node.screenshotWidth = res.width;
+                node.screenshotHeight = res.height;
+                continue;
+              }
+            }
+
+            // If we have already done 5 scroll captures, stop to keep PDF export snappy
+            if (scrollCapturesDone >= 5) continue;
+
+            // Element is offscreen or not in current viewport -> Scroll it into view!
+            await chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              args: [node.target],
+              func: (selector) => {
+                let el = null;
+                try { el = document.querySelector(selector); } catch (_) {}
+                if (!el && selector.includes('#')) {
+                  const idMatch = selector.match(/#([a-zA-Z0-9_-]+)/);
+                  if (idMatch) el = document.getElementById(idMatch[1]);
+                }
+                if (el && typeof el.scrollIntoView === 'function') {
+                  el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
+                }
+              }
+            });
+
+            // Respect Chrome captureVisibleTab rate limit (max 2 calls per second)
+            const elapsed = Date.now() - lastCaptureTime;
+            if (elapsed < 500) {
+              await new Promise(r => setTimeout(r, 500 - elapsed));
+            }
+
+            // Capture new viewport
+            let scrolledShot = null;
+            try {
+              scrolledShot = await chrome.tabs.captureVisibleTab(null, { format: 'png' });
+              lastCaptureTime = Date.now();
+              scrollCapturesDone++;
+            } catch (capErr) {
+              console.warn('[Auditor] captureVisibleTab throttled/failed:', capErr);
+              break;
+            }
+
+            if (!scrolledShot) continue;
+
+            // Re-fetch focal position now that it is centered in the viewport
+            const [scrolledInfoRes] = await chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              args: [node.target],
+              func: (selector) => {
+                let el = null;
+                try { el = document.querySelector(selector); } catch (_) {}
+                if (!el && selector.includes('#')) {
+                  const idMatch = selector.match(/#([a-zA-Z0-9_-]+)/);
+                  if (idMatch) el = document.getElementById(idMatch[1]);
+                }
+                if (!el) return null;
+
+                let visualEl = el;
+                const r = el.getBoundingClientRect();
+                if (r.width <= 2 || r.height <= 2 || r.left < -20 || r.top < -20) {
+                  if (el.labels && el.labels.length > 0) {
+                    visualEl = el.labels[0];
+                  } else if (el.closest('label')) {
+                    visualEl = el.closest('label');
+                  }
+                }
+
+                let focalEl = visualEl;
+                const vr = visualEl.getBoundingClientRect();
+                if (vr.width > 450) {
+                  const contentChild = visualEl.querySelector(
+                    'button, h1, h2, h3, h4, h5, h6, [role="heading"], [role="button"], label, input, select, textarea, a, .accordion-title, .card-title, .title, p, span, strong, b'
+                  );
+                  if (contentChild) {
+                    const cr = contentChild.getBoundingClientRect();
+                    if (cr.width > 10 && cr.height > 10 && cr.width < vr.width) {
+                      focalEl = contentChild;
+                    }
+                  }
+                }
+
+                const fr = focalEl.getBoundingClientRect();
+                return {
+                  rect: {
+                    left: Math.round(fr.left),
+                    top: Math.round(fr.top),
+                    width: Math.round(fr.width),
+                    height: Math.round(fr.height),
+                  },
+                  viewport: {
+                    width: window.innerWidth,
+                    height: window.innerHeight,
+                    dpr: window.devicePixelRatio || 1,
+                  }
+                };
+              }
+            });
+
+            const scrolledFocal = scrolledInfoRes?.result;
+            if (scrolledFocal) {
+              const scrolledImg = await loadHtmlImage(scrolledShot);
+              if (scrolledImg) {
+                loadedCurrentImg = scrolledImg; // update for subsequent nodes
+                const res = cropFocalThumbnail(scrolledImg, scrolledFocal.rect, scrolledFocal.viewport.width, scrolledFocal.viewport.height);
+                if (res) {
+                  node.screenshot = res.dataUrl;
+                  node.screenshotWidth = res.width;
+                  node.screenshotHeight = res.height;
+                }
+              }
+            }
+          }
+        } finally {
+          // Restore original user scroll position
+          await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            args: [origScroll.x, origScroll.y],
+            func: (x, y) => window.scrollTo(x, y),
+          }).catch(() => {});
+        }
+      } catch (liveErr) {
+        console.warn('[Auditor] Live scroll thumbnail generation fallback:', liveErr);
+      }
+    }
+
+    // Phase 2: Fallback for any remaining uncaptured nodes using audit.pageScreenshot
+    const pageShot = audit.pageScreenshot || audit.screenshot;
+    if (pageShot) {
+      let pageImg = null;
+      try {
+        pageImg = await loadHtmlImage(pageShot);
       } catch (_) {}
 
-      const scale = img.naturalWidth / tabWidth || 1;
+      if (pageImg && pageImg.naturalWidth && pageImg.naturalHeight) {
+        let tabWidth = 1280;
+        let tabHeight = 800;
+        if (tab?.width) tabWidth = tab.width;
 
-      for (const v of audit.violations || []) {
-        for (const node of (v.nodes || []).slice(0, 8)) {
-          if (node.rect && node.rect.width > 0 && node.rect.height > 0 && !node.screenshot) {
-            const r = node.rect;
-            const pad = 14 * scale;
-            const sx = Math.max(0, r.left * scale - pad);
-            const sy = Math.max(0, r.top * scale - pad);
-            const sw = Math.min(img.naturalWidth - sx, r.width * scale + pad * 2);
-            const sh = Math.min(img.naturalHeight - sy, r.height * scale + pad * 2);
-
-            if (sw > 10 && sh > 10) {
-              const canvas = document.createElement('canvas');
-              const maxW = 340;
-              const maxH = 170;
-              const aspect = sw / sh;
-              let dw = sw;
-              let dh = sh;
-              if (dw > maxW) {
-                dw = maxW;
-                dh = maxW / aspect;
-              }
-              if (dh > maxH) {
-                dh = maxH;
-                dw = maxH * aspect;
-              }
-              canvas.width = Math.round(dw);
-              canvas.height = Math.round(dh);
-              const ctx = canvas.getContext('2d');
-              if (ctx) {
-                ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
-                // Draw bright red failure highlight box around the offending element
-                const rx = pad * (canvas.width / sw);
-                const ry = pad * (canvas.height / sh);
-                const rw = r.width * scale * (canvas.width / sw);
-                const rh = r.height * scale * (canvas.height / sh);
-                ctx.strokeStyle = '#ef4444';
-                ctx.lineWidth = 2.5;
-                ctx.strokeRect(rx, ry, rw, rh);
-
-                node.screenshot = canvas.toDataURL('image/png');
-                node.screenshotWidth = canvas.width;
-                node.screenshotHeight = canvas.height;
-              }
+        for (const node of nodesToCapture) {
+          if (node.screenshot) continue;
+          const targetRect = node.focalRect || node.rect;
+          if (targetRect && targetRect.width > 0 && targetRect.height > 0) {
+            let adjustedRect = { ...targetRect };
+            if (adjustedRect.width > 450) {
+              adjustedRect.width = 400;
+            }
+            const res = cropFocalThumbnail(pageImg, adjustedRect, tabWidth, tabHeight);
+            if (res) {
+              node.screenshot = res.dataUrl;
+              node.screenshotWidth = res.width;
+              node.screenshotHeight = res.height;
             }
           }
         }
       }
-    } catch (err) {
-      console.warn('[Auditor] Could not generate element thumbnails:', err);
     }
   }
 
@@ -681,9 +986,7 @@ function setupEventListeners() {
         }
       }
 
-      if (currentAudit.pageScreenshot) {
-        await generateElementThumbnails(currentAudit);
-      }
+      await generateElementThumbnails(currentAudit);
 
       // @ts-ignore
       await window.generateWcagPdfReport(currentAudit);
