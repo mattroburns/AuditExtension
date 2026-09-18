@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.2.2] - 2026-09-18
+
+### 🔗 Link Checker HTTP 405 Workaround & Smart GET Fallback
+- **Fixed False-Positive 405 Errors on Valid Links**:
+  - Resolved an issue where valid web pages hosted behind CDNs, firewalls, or reverse proxies (e.g. Cloudflare, CloudFront, Nginx) were reported as broken links with `405 Method Not Allowed`.
+  - Fixed a silent bug in `verifyUrl` where `catch (headErr)` never triggered on HTTP 405 (since `fetch()` resolves normally on non-200 responses), causing 405 to fall through to the generic broken link branch.
+  - Added automatic fallback to a lightweight `GET` request when `HEAD` returns `405 Method Not Allowed`, `501 Not Implemented`, `403 Forbidden`, or `400 Bad Request`.
+  - Preserved bandwidth by combining `Range: 'bytes=0-0'` with immediate stream cancellation (`response.body.cancel()`), preventing full-page payload downloads.
+  - Reclassified persistent 405 responses (such as POST-only API endpoints) to `warning` with diagnostic status text rather than failing the link audit as hard errors.
+
 ## [1.2.1] - 2026-09-18
 
 ### 🛡️ Drawer Header Spacing & Overlap Prevention

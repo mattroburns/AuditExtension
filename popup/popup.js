@@ -2374,43 +2374,57 @@ async function auditPageLinks(rawLinks = [], forceRecheck = false) {
 
     try {
       // First attempt: HEAD request with 6s timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      const headController = new AbortController();
+      const headTimeoutId = setTimeout(() => headController.abort(), 6000);
 
       let response;
       try {
         response = await fetch(url, {
           method: 'HEAD',
-          signal: controller.signal,
+          signal: headController.signal,
           redirect: 'follow',
           cache: 'no-cache',
         });
       } catch (headErr) {
         const hErr = /** @type {any} */ (headErr);
-        // Retry with GET if HEAD fails (some servers reject HEAD or return 405 Method Not Allowed)
-        if (hErr?.name !== 'AbortError') {
-          const getController = new AbortController();
-          const getTimeoutId = setTimeout(() => getController.abort(), 6000);
-          try {
-            response = await fetch(url, {
-              method: 'GET',
-              signal: getController.signal,
-              redirect: 'follow',
-              headers: { Range: 'bytes=0-0' },
-              cache: 'no-cache',
-            });
-            // Abort stream body immediately to save bandwidth
-            if (response.body) {
-              try { await response.body.cancel(); } catch (_) {}
-            }
-          } finally {
-            clearTimeout(getTimeoutId);
-          }
-        } else {
+        if (hErr?.name === 'AbortError') {
           throw headErr;
         }
+        // Network error on HEAD (some servers reset/drop HEAD requests) - will attempt GET fallback below
       } finally {
-        clearTimeout(timeoutId);
+        clearTimeout(headTimeoutId);
+      }
+
+      // If HEAD failed with a network error or returned an HTTP status that often indicates
+      // the server or CDN does not support or allow HEAD requests (405 Method Not Allowed,
+      // 501 Not Implemented, 403 Forbidden on HEAD, or 400 Bad Request),
+      // retry with a lightweight GET request.
+      const needsGetFallback = !response || [400, 403, 405, 501].includes(response.status);
+
+      if (needsGetFallback) {
+        const getController = new AbortController();
+        const getTimeoutId = setTimeout(() => getController.abort(), 6000);
+        try {
+          const getResponse = await fetch(url, {
+            method: 'GET',
+            signal: getController.signal,
+            redirect: 'follow',
+            headers: { Range: 'bytes=0-0' },
+            cache: 'no-cache',
+          });
+          // Abort stream body immediately to save bandwidth
+          if (getResponse.body) {
+            try { await getResponse.body.cancel(); } catch (_) {}
+          }
+          response = getResponse;
+        } catch (getErr) {
+          // If GET also threw an error, rethrow if we had no prior response
+          if (!response) {
+            throw getErr;
+          }
+        } finally {
+          clearTimeout(getTimeoutId);
+        }
       }
 
       if (response) {
@@ -2432,6 +2446,12 @@ async function auditPageLinks(rawLinks = [], forceRecheck = false) {
         } else if (code === 401 || code === 403) {
           result.health = 'warning';
           result.statusText = `${code} Access Restricted / Auth Required`;
+        } else if (code === 405) {
+          result.health = 'warning';
+          result.statusText = '405 Method Not Allowed (Target may require POST or specific headers)';
+        } else if (code === 416) {
+          result.health = 'working';
+          result.statusText = '200 OK (Byte range satisfied)';
         } else if (code >= 400 && code < 500) {
           result.health = 'broken';
           result.statusText = `${code} ${response.statusText || 'Client Error'}`;
