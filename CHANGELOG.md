@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.2.1] - 2026-09-18
+
+### 🛡️ Drawer Header Spacing & Overlap Prevention
+- **Eliminated Header Text & Badge Collision**:
+  - Resolved an issue where subtext in "Link Health...", "Tab Navigation...", and "Screen Reader Speech..." (as well as WCAG Issues and Vision Simulation) could overlap with scoring and validation badges on the right.
+  - Added `flex: 1 1 auto` and `min-width: 0` to all drawer title containers and their inner text blocks, allowing text truncation (`ellipsis`) without pushing into status badges.
+  - Added a generous `14px` flex gap between title content and badge groups, plus `6px` right-padding on title wrappers for clean visual breathing room.
+  - Enforced `flex-shrink: 0`, `margin-left: auto`, and `white-space: nowrap` on all badge groups, status/score badges, and toggle buttons to preserve their layout integrity.
+  - Added native `title="..."` tooltip attributes to all drawer subtitles for easy reading on hover when truncated.
+  - Added responsive padding adjustments in the `<= 520px` media query.
+
 ## [1.2.0] - 2026-09-17
 
 ### 🎨 Extension Popup UI & Layout Modernization

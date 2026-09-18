@@ -836,6 +836,7 @@ svg {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 14px;
   cursor: pointer;
   user-select: none;
   background: var(--bg-surface);
@@ -850,6 +851,17 @@ svg {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.sr-header-title > div {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-right: 6px;
 }
 
 .sr-icon {
@@ -868,17 +880,30 @@ svg {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-main);
+  margin: 0;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .sr-subtitle {
   font-size: 10.5px;
   color: var(--text-muted);
+  margin: 0;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .sr-badge-group {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
+  margin-left: auto;
+  white-space: nowrap;
 }
 
 .sr-score-badge {
@@ -890,6 +915,8 @@ svg {
   font-size: 10.5px;
   font-weight: 600;
   transition: all 0.2s ease;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .sr-toggle-btn {
@@ -901,6 +928,8 @@ svg {
   font-size: 10.5px;
   cursor: pointer;
   transition: all 0.15s ease;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .sr-toggle-btn:hover {
@@ -1702,6 +1731,7 @@ svg {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 14px;
   cursor: pointer;
   user-select: none;
   background: var(--bg-surface);
@@ -1716,6 +1746,17 @@ svg {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.issues-header-title > div {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-right: 6px;
 }
 
 .issues-icon {
@@ -1734,17 +1775,30 @@ svg {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-main);
+  margin: 0;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .issues-subtitle {
   font-size: 10.5px;
   color: var(--text-muted);
+  margin: 0;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .issues-badge-group {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
+  margin-left: auto;
+  white-space: nowrap;
 }
 
 .issues-status-badge {
@@ -1755,6 +1809,8 @@ svg {
   border-radius: 12px;
   font-size: 10.5px;
   font-weight: 600;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .issues-toggle-btn {
@@ -1766,6 +1822,8 @@ svg {
   font-size: 10.5px;
   cursor: pointer;
   transition: all 0.15s ease;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .issues-toggle-btn:hover {
@@ -2042,6 +2100,14 @@ svg {
   .failures-summary-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+  .link-checker-header,
+  .tab-order-header,
+  .sr-header,
+  .issues-header,
+  .cvd-header {
+    gap: 10px;
+    padding: 10px 12px;
+  }
 }
 
 /* ==========================================================================
@@ -2064,6 +2130,7 @@ svg {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 14px;
   cursor: pointer;
   user-select: none;
   background: var(--bg-surface);
@@ -2078,6 +2145,17 @@ svg {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.cvd-header-title > div {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-right: 6px;
 }
 
 .cvd-header-icon {
@@ -2096,17 +2174,30 @@ svg {
   font-size: 12.5px;
   font-weight: 600;
   color: var(--text-main);
+  margin: 0;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .cvd-subheading {
   font-size: 10px;
   color: var(--text-muted);
+  margin: 0;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .cvd-badge-group {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
+  margin-left: auto;
+  white-space: nowrap;
 }
 
 .cvd-status-badge {
@@ -2118,6 +2209,8 @@ svg {
   font-size: 10.5px;
   font-weight: 600;
   transition: all 0.2s ease;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .cvd-toggle-btn {
@@ -2129,6 +2222,8 @@ svg {
   font-size: 10.5px;
   cursor: pointer;
   transition: all 0.15s ease;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .cvd-toggle-btn:hover {
@@ -2244,6 +2339,7 @@ svg {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 14px;
   cursor: pointer;
   user-select: none;
   background: var(--bg-surface);
@@ -2258,6 +2354,17 @@ svg {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tab-order-header-title > div {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-right: 6px;
 }
 
 .tab-order-icon {
@@ -2276,17 +2383,30 @@ svg {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-main);
+  margin: 0;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tab-order-subtitle {
   font-size: 10.5px;
   color: var(--text-muted);
+  margin: 0;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tab-order-badge-group {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
+  margin-left: auto;
+  white-space: nowrap;
 }
 
 .tab-order-status-badge {
@@ -2297,6 +2417,8 @@ svg {
   border-radius: 12px;
   font-size: 10.5px;
   font-weight: 600;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .tab-order-toggle-btn {
@@ -2308,6 +2430,8 @@ svg {
   font-size: 10.5px;
   cursor: pointer;
   transition: all 0.15s ease;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .tab-order-toggle-btn:hover {
@@ -2577,7 +2701,7 @@ svg {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 14px;
   cursor: pointer;
   background: var(--bg-surface);
   user-select: none;
@@ -2592,7 +2716,17 @@ svg {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex: 1 1 auto;
   min-width: 0;
+}
+
+.link-checker-header-title > div {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-right: 6px;
 }
 
 .link-checker-icon {
@@ -2612,12 +2746,17 @@ svg {
   font-weight: 600;
   color: var(--text-main);
   margin: 0;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .link-checker-subtitle {
   font-size: 10.5px;
   color: var(--text-muted);
   margin: 0;
+  line-height: 1.35;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2628,6 +2767,8 @@ svg {
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+  margin-left: auto;
+  white-space: nowrap;
 }
 
 .link-checker-status-badge {
@@ -2639,6 +2780,8 @@ svg {
   padding: 3px 8px;
   border-radius: 999px;
   letter-spacing: 0.2px;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .link-checker-status-badge.has-broken {
@@ -2664,6 +2807,8 @@ svg {
   border-radius: var(--radius-xs);
   cursor: pointer;
   transition: all 0.15s ease;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .link-checker-toggle-btn:hover {
