@@ -9,6 +9,7 @@
 let currentAudit = null;
 let currentFilter = 'all';
 let currentTabId = null;
+const activePreviewFixes = new Set();
 
 // Link Health & Broken Link Auditor State
 let currentLinkAudit = null;
@@ -993,6 +994,7 @@ async function runAudit(targetUrl) {
   const btnGo = document.getElementById('btn-go');
 
   showProgressView();
+  activePreviewFixes.clear();
   if (btnScan) {
     // @ts-ignore
     btnScan.disabled = true;
@@ -1014,6 +1016,19 @@ async function runAudit(targetUrl) {
       throw new Error('No active browser tab found.');
     }
     currentTabId = tab.id;
+
+    // Cleanly revert any simulated preview fixes before starting fresh audit
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: () => {
+          // @ts-ignore
+          if (typeof window.__auditforgeRevertAllFixes === 'function') {
+            window.__auditforgeRevertAllFixes();
+          }
+        },
+      });
+    } catch (_) {}
 
     // Normalize URL
     let validUrl = targetUrl;
@@ -2325,14 +2340,16 @@ async function auditPageLinks(rawLinks = [], forceRecheck = false) {
         item.health = 'warning';
         item.statusCode = 0;
         item.statusText = 'Generic hash placeholder href="#"';
-      } else if (item.hashTargetExists) {
+      } else if (item.hashTargetExists || item.rawHref.toLowerCase() === '#top' || /^#(\/|!)/.test(item.rawHref)) {
         item.health = 'working';
         item.statusCode = 200;
-        item.statusText = 'In-page anchor element verified in DOM';
+        item.statusText = item.rawHref.toLowerCase() === '#top'
+          ? 'Standard top-of-page anchor'
+          : (/^#(\/|!)/.test(item.rawHref) ? 'Client-side SPA route' : 'In-page anchor element verified in DOM');
       } else {
-        item.health = 'broken';
-        item.statusCode = 404;
-        item.statusText = `Broken in-page anchor (target element "${item.rawHref}" not found in DOM)`;
+        item.health = 'warning';
+        item.statusCode = 0;
+        item.statusText = `In-page anchor target "${item.rawHref}" not detected in initial DOM`;
       }
     } else if (item.isProtocol) {
       if (/^javascript:/i.test(item.rawHref)) {
@@ -2360,76 +2377,90 @@ async function auditPageLinks(rawLinks = [], forceRecheck = false) {
   let completedHttp = 0;
 
   /**
-   * Checks a single HTTP/HTTPS URL
+   * Checks a single HTTP/HTTPS URL with genuine browser-authentic GET verification.
+   * Completely eliminates false 404s caused by servers rejecting HEAD requests,
+   * missing browser Accept headers, or Range headers.
    * @param {string} url
    */
   async function verifyUrl(url) {
     if (!url || !/^https?:/i.test(url)) return;
 
+    // Separate clean fetch URL from client-side anchor fragment
+    const [fetchUrl] = url.split('#');
+    if (!fetchUrl) return;
+
     let result = {
       statusCode: 0,
       statusText: '',
-      health: 'broken',
+      health: 'warning',
+    };
+
+    const browserHeaders = {
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Cache-Control': 'no-cache',
     };
 
     try {
-      // First attempt: HEAD request with 6s timeout
-      const headController = new AbortController();
-      const headTimeoutId = setTimeout(() => headController.abort(), 6000);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
-      let response;
+      let response = null;
       try {
-        response = await fetch(url, {
-          method: 'HEAD',
-          signal: headController.signal,
+        // Standard GET request: resolves immediately upon receiving HTTP headers,
+        // matching genuine browser navigation behavior and eliminating false 404s.
+        response = await fetch(fetchUrl, {
+          method: 'GET',
+          headers: browserHeaders,
+          signal: controller.signal,
           redirect: 'follow',
           cache: 'no-cache',
+          credentials: 'omit',
         });
-      } catch (headErr) {
-        const hErr = /** @type {any} */ (headErr);
-        if (hErr?.name === 'AbortError') {
-          throw headErr;
+      } catch (fetchErr) {
+        const fErr = /** @type {any} */ (fetchErr);
+        if (fErr?.name === 'AbortError' || fErr?.name === 'TimeoutError') {
+          clearTimeout(timeoutId);
+          result.statusCode = 408;
+          result.statusText = 'Request Timeout (10s response limit)';
+          result.health = 'broken';
+          applyResult(url, result);
+          return;
         }
-        // Network error on HEAD (some servers reset/drop HEAD requests) - will attempt GET fallback below
-      } finally {
-        clearTimeout(headTimeoutId);
-      }
 
-      // If HEAD failed with a network error or returned an HTTP status that often indicates
-      // the server or CDN does not support or allow HEAD requests (405 Method Not Allowed,
-      // 501 Not Implemented, 403 Forbidden on HEAD, or 400 Bad Request),
-      // retry with a lightweight GET request.
-      const needsGetFallback = !response || [400, 403, 405, 501].includes(response.status);
-
-      if (needsGetFallback) {
-        const getController = new AbortController();
-        const getTimeoutId = setTimeout(() => getController.abort(), 6000);
+        // Check if destination host is reachable via no-cors probe before treating as error
         try {
-          const getResponse = await fetch(url, {
+          const probeController = new AbortController();
+          const probeTimeout = setTimeout(() => probeController.abort(), 4000);
+          const probeRes = await fetch(fetchUrl, {
             method: 'GET',
-            signal: getController.signal,
-            redirect: 'follow',
-            headers: { Range: 'bytes=0-0' },
+            mode: 'no-cors',
+            signal: probeController.signal,
             cache: 'no-cache',
           });
-          // Abort stream body immediately to save bandwidth
-          if (getResponse.body) {
-            try { await getResponse.body.cancel(); } catch (_) {}
+          clearTimeout(probeTimeout);
+          if (probeRes && (probeRes.type === 'opaque' || probeRes.status === 200)) {
+            result.statusCode = 200;
+            result.statusText = '200 OK (Host reachable, cross-origin protected)';
+            result.health = 'working';
+            applyResult(url, result);
+            return;
           }
-          response = getResponse;
-        } catch (getErr) {
-          // If GET also threw an error, rethrow if we had no prior response
-          if (!response) {
-            throw getErr;
-          }
-        } finally {
-          clearTimeout(getTimeoutId);
-        }
+        } catch (_) {}
+
+        throw fetchErr;
+      } finally {
+        clearTimeout(timeoutId);
       }
 
       if (response) {
         const code = response.status;
         result.statusCode = code;
+
+        // Cancel the response body stream immediately to save bandwidth
+        if (response.body) {
+          try { await response.body.cancel(); } catch (_) {}
+        }
 
         if (code >= 200 && code < 300) {
           result.health = 'working';
@@ -2438,26 +2469,31 @@ async function auditPageLinks(rawLinks = [], forceRecheck = false) {
           result.health = 'working';
           result.statusText = `${code} Redirect`;
         } else if (code === 404) {
+          // Confirmed 404 Not Found from actual GET request
           result.health = 'broken';
           result.statusText = '404 Not Found';
         } else if (code === 410) {
+          // Confirmed 410 Gone
           result.health = 'broken';
           result.statusText = '410 Gone';
         } else if (code === 401 || code === 403) {
+          // Page exists but requires auth or Cloudflare/bot challenge - NOT a broken link
           result.health = 'warning';
-          result.statusText = `${code} Access Restricted / Auth Required`;
+          result.statusText = `${code} Access Restricted / Bot Protection`;
         } else if (code === 405) {
           result.health = 'warning';
-          result.statusText = '405 Method Not Allowed (Target may require POST or specific headers)';
-        } else if (code === 416) {
-          result.health = 'working';
-          result.statusText = '200 OK (Byte range satisfied)';
-        } else if (code >= 400 && code < 500) {
-          result.health = 'broken';
-          result.statusText = `${code} ${response.statusText || 'Client Error'}`;
-        } else if (code >= 500) {
+          result.statusText = '405 Method Not Allowed (Target requires specific interaction)';
+        } else if (code === 429) {
+          result.health = 'warning';
+          result.statusText = '429 Rate Limited (Server temporarily throttled verification)';
+        } else if (code >= 500 && code <= 599) {
+          // Confirmed 5xx server failure
           result.health = 'broken';
           result.statusText = `${code} ${response.statusText || 'Server Error'}`;
+        } else if (code >= 400 && code < 500) {
+          // Other 4xx client errors
+          result.health = 'broken';
+          result.statusText = `${code} ${response.statusText || 'Client Error'}`;
         } else {
           result.health = 'warning';
           result.statusText = `${code} Status Response`;
@@ -2465,22 +2501,35 @@ async function auditPageLinks(rawLinks = [], forceRecheck = false) {
       }
     } catch (netErr) {
       const nErr = /** @type {any} */ (netErr);
+      const msg = nErr?.message || '';
       if (nErr?.name === 'AbortError' || nErr?.name === 'TimeoutError') {
         result.statusCode = 408;
-        result.statusText = 'Request Timeout (6s response limit)';
+        result.statusText = 'Request Timeout (10s response limit)';
         result.health = 'broken';
+      } else if (msg.includes('net::ERR_NAME_NOT_RESOLVED') || msg.includes('ENOTFOUND') || /dns/i.test(msg)) {
+        result.statusCode = 0;
+        result.statusText = 'DNS Resolution Failed (Domain does not exist)';
+        result.health = 'broken';
+      } else if (msg.includes('net::ERR_CONNECTION_REFUSED')) {
+        result.statusCode = 0;
+        result.statusText = 'Connection Refused by Destination Host';
+        result.health = 'broken';
+      } else if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+        result.statusCode = 0;
+        result.statusText = 'Network Verification Blocked by Client/Browser Policy';
+        result.health = 'warning';
       } else {
         result.statusCode = 0;
-        const msg = nErr?.message || '';
-        result.statusText = msg.includes('Failed to fetch')
-          ? 'Network / DNS resolution error'
-          : `Connection error: ${msg || 'Unknown network error'}`;
-        result.health = 'broken';
+        result.statusText = `Network error: ${msg || 'Connection issue'}`;
+        result.health = 'warning';
       }
     }
 
-    // Map result back to all link instances with this URL
-    const indices = urlMap.get(url) || [];
+    applyResult(url, result);
+  }
+
+  function applyResult(targetUrl, result) {
+    const indices = urlMap.get(targetUrl) || [];
     indices.forEach(idx => {
       items[idx].statusCode = result.statusCode;
       items[idx].statusText = result.statusText;
@@ -2683,7 +2732,19 @@ function renderLinkCards() {
     } else if (item.health === 'warning') {
       cardClass += ' card-warning';
       badgeClass += ' status-redirect';
-      badgeText = item.statusCode ? `${item.statusCode} WARNING` : 'LINK WARNING';
+      if (item.statusCode === 401 || item.statusCode === 403) {
+        badgeText = `${item.statusCode} RESTRICTED`;
+      } else if (item.statusCode === 405) {
+        badgeText = '405 NOT ALLOWED';
+      } else if (item.statusCode === 429) {
+        badgeText = '429 THROTTLED';
+      } else if (item.isEmpty) {
+        badgeText = 'EMPTY HREF';
+      } else if (item.isHash) {
+        badgeText = 'ANCHOR TARGET';
+      } else {
+        badgeText = item.statusCode ? `${item.statusCode} WARNING` : 'LINK WARNING';
+      }
     } else if (item.health === 'working') {
       cardClass += ' card-valid';
       if (item.isHash) {
@@ -2724,10 +2785,18 @@ function renderLinkCards() {
             ${item.statusText && item.statusText !== badgeText ? `<div class="link-diag-box"><strong>Diagnostics:</strong> ${escapeHtml(item.statusText)}</div>` : ''}
           </div>
         </div>
-        <button type="button" class="btn-locate-link ${isBroken ? 'btn-locate-broken' : ''}" title="Locate and spotlight this link on page">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>
-          <span>Spotlight</span>
-        </button>
+        <div class="element-item-actions">
+          ${isBroken && item.selector ? `
+            <button type="button" class="btn-preview-fix ${activePreviewFixes.has(item.selector) ? 'active' : ''}" data-target="${escapeHtml(item.selector)}" title="Preview button role or fallback destination">
+              <span class="fix-btn-icon">${activePreviewFixes.has(item.selector) ? '↩' : '✨'}</span>
+              <span class="fix-btn-text">${activePreviewFixes.has(item.selector) ? 'Revert Fix' : 'Preview Fix'}</span>
+            </button>
+          ` : ''}
+          <button type="button" class="btn-locate-link ${isBroken ? 'btn-locate-broken' : ''}" title="Locate and spotlight this link on page">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>
+            <span>Spotlight</span>
+          </button>
+        </div>
       </div>
     `;
   }).join('') + (isTruncated ? `
@@ -2757,6 +2826,14 @@ function renderLinkCards() {
       }, btnSpotlight);
     };
 
+    const btnFixLink = /** @type {HTMLElement|null} */ (cardEl.querySelector('.btn-preview-fix'));
+    btnFixLink?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (item.selector) {
+        togglePreviewFix(item.selector, 'link', { suggestedUrl: '#' }, btnFixLink);
+      }
+    });
+
     btnSpotlight?.addEventListener('click', (e) => {
       e.stopPropagation();
       triggerLocate();
@@ -2764,10 +2841,265 @@ function renderLinkCards() {
 
     cardEl.addEventListener('click', (e) => {
       const target = /** @type {Element|null} */ (e.target);
-      if (target && (target.closest('.btn-locate-link') || target.closest('a'))) return;
+      if (target && (target.closest('.btn-locate-link') || target.closest('.btn-preview-fix') || target.closest('a'))) return;
       triggerLocate();
     });
   });
+}
+
+/**
+ * Resolves available fix configuration for a failing node
+ * @param {Object} violation
+ * @param {Object} node
+ * @returns {{type: string, payload: Object} | null}
+ */
+function getFixConfigForNode(violation, node) {
+  if (!node) return null;
+
+  // 1. Pre-calculated color contrast fix
+  if (node.contrastFix && (node.contrastFix.suggestedFg || node.contrastFix.suggestedBg)) {
+    return {
+      type: 'contrast',
+      payload: {
+        suggestedFg: node.contrastFix.suggestedFg,
+        suggestedBg: node.contrastFix.suggestedBg,
+        suggestedRatio: node.contrastFix.suggestedRatio || '4.5:1',
+      }
+    };
+  }
+
+  // 2. Interactive hover contrast failure
+  if (node.hoverDetails) {
+    return {
+      type: 'contrast',
+      payload: {
+        suggestedFg: node.hoverDetails.restingFg || node.contrastFix?.suggestedFg,
+        suggestedBg: node.hoverDetails.restingBg || node.contrastFix?.suggestedBg,
+        suggestedRatio: node.hoverDetails.requiredRatio || '4.5:1',
+      }
+    };
+  }
+
+  // 3. ARIA semantic label diagnosis
+  if (node.ariaDetails && node.ariaDetails.recommendedLabel) {
+    return {
+      type: 'aria-label',
+      payload: {
+        recommendedLabel: node.ariaDetails.recommendedLabel,
+      }
+    };
+  }
+
+  // 4. Links must be distinguishable without relying on color (WCAG 1.4.1)
+  if (violation.id === 'link-in-text-block' || /distinguishable without relying on color/i.test(violation.help || '')) {
+    return {
+      type: 'link-distinguish',
+      payload: {
+        decoration: 'underline',
+        offset: '3px',
+      }
+    };
+  }
+
+  // 5. Target size (WCAG 2.2 2.5.8)
+  if (violation.id === 'target-size') {
+    return {
+      type: 'target-size',
+      payload: {
+        minWidth: 24,
+        minHeight: 24,
+      }
+    };
+  }
+
+  // 6. Missing Image Alternative Text
+  if (violation.id === 'image-alt' || violation.id === 'input-image-alt') {
+    return {
+      type: 'image-alt',
+      payload: {
+        recommendedAlt: 'Accessible image content summary',
+      }
+    };
+  }
+
+  // 7. Redundant Image Alt Text ("image of...")
+  if (violation.id === 'image-redundant-alt') {
+    let clean = 'Visual illustration';
+    const altMatch = (node.html || '').match(/alt=["']([^"']+)["']/i);
+    if (altMatch) {
+      clean = altMatch[1].replace(/^(image|photo|picture|graphic|icon)\s*(of)?\s*/i, '').trim() || 'Visual summary';
+    }
+    return {
+      type: 'image-alt',
+      payload: {
+        recommendedAlt: clean,
+      }
+    };
+  }
+
+  // 8. Unnamed Buttons, Links, or Form Inputs
+  if (violation.id === 'button-name') {
+    return {
+      type: 'button-name',
+      payload: {
+        recommendedLabel: 'Action Button',
+      }
+    };
+  }
+  if (violation.id === 'link-name') {
+    return {
+      type: 'link-name',
+      payload: {
+        recommendedLabel: 'Navigation Link',
+      }
+    };
+  }
+  if (['label', 'label-title-only', 'select-name', 'input-button-name', 'aria-input-field-name'].includes(violation.id)) {
+    let inferName = 'Form Input';
+    const html = node.html || '';
+    const placeholderMatch = html.match(/placeholder=["']([^"']+)["']/i);
+    const nameMatch = html.match(/name=["']([^"']+)["']/i);
+    const idMatch = html.match(/id=["']([^"']+)["']/i);
+    const typeMatch = html.match(/type=["']([^"']+)["']/i);
+
+    if (placeholderMatch) inferName = placeholderMatch[1];
+    else if (nameMatch) inferName = nameMatch[1].replace(/[-_]/g, ' ');
+    else if (idMatch) inferName = idMatch[1].replace(/[-_]/g, ' ');
+    else if (typeMatch) inferName = `${typeMatch[1]} field`;
+    else if (/select/i.test(html)) inferName = 'Select option';
+
+    return {
+      type: 'aria-label',
+      payload: {
+        recommendedLabel: inferName.charAt(0).toUpperCase() + inferName.slice(1),
+      }
+    };
+  }
+
+  // 9. Empty Headings
+  if (violation.id === 'empty-heading') {
+    return {
+      type: 'aria-label',
+      payload: {
+        recommendedLabel: 'Section Heading',
+      }
+    };
+  }
+
+  // 10. Frame Titles
+  if (violation.id === 'frame-title' || violation.id === 'frame-title-unique') {
+    return {
+      type: 'frame-title',
+      payload: {
+        recommendedTitle: 'Embedded content frame',
+      }
+    };
+  }
+
+  // 11. HTML Document Language
+  if (['html-has-lang', 'html-lang-valid', 'valid-lang'].includes(violation.id)) {
+    return {
+      type: 'html-lang',
+      payload: {
+        lang: 'en',
+      }
+    };
+  }
+
+  // 12. Interactive element inside aria-hidden
+  if (violation.id === 'aria-hidden-focus') {
+    return {
+      type: 'aria-hidden-focus',
+      payload: {},
+    };
+  }
+
+  // 13. Tabindex & Focus Order
+  if (violation.id === 'tabindex' || violation.id === 'focus-order-semantics') {
+    return {
+      type: 'tabindex',
+      payload: {
+        tabindex: '0',
+      }
+    };
+  }
+
+  // 14. General Color Contrast rule fallback
+  if (violation.id === 'color-contrast' || violation.id === 'color-contrast-enhanced') {
+    return {
+      type: 'contrast',
+      payload: {
+        suggestedFg: '#ffffff',
+        suggestedBg: '#090e11',
+        suggestedRatio: '7.0:1',
+      }
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Toggles a live in-DOM simulated fix on the active page
+ * @param {string} targetSelector
+ * @param {string} fixType
+ * @param {Object} fixPayload
+ * @param {HTMLElement} [buttonEl]
+ */
+async function togglePreviewFix(targetSelector, fixType, fixPayload, buttonEl) {
+  try {
+    const activeTab = await getActiveWebTab();
+    if (!activeTab || !activeTab.id) return;
+
+    const isActive = activePreviewFixes.has(targetSelector);
+
+    if (isActive) {
+      // Revert live preview fix
+      await chrome.scripting.executeScript({
+        target: { tabId: activeTab.id },
+        func: (sel) => {
+          // @ts-ignore
+          if (typeof window.__auditforgeRevertFix === 'function') {
+            return window.__auditforgeRevertFix(sel);
+          }
+          return { success: false };
+        },
+        args: [targetSelector],
+      });
+
+      activePreviewFixes.delete(targetSelector);
+      if (buttonEl) {
+        buttonEl.classList.remove('active');
+        buttonEl.innerHTML = '<span class="fix-btn-icon">✨</span> <span class="fix-btn-text">Preview Fix</span>';
+        buttonEl.title = 'Preview accessible fix live on the page';
+      }
+    } else {
+      // Apply live preview fix
+      const res = await chrome.scripting.executeScript({
+        target: { tabId: activeTab.id },
+        func: (sel, type, payload) => {
+          // @ts-ignore
+          if (typeof window.__auditforgePreviewFix === 'function') {
+            return window.__auditforgePreviewFix(sel, type, payload);
+          }
+          return { success: false, error: 'Preview fix engine not available in page' };
+        },
+        args: [targetSelector, fixType, fixPayload],
+      });
+
+      const result = res[0]?.result;
+      if (result && result.success) {
+        activePreviewFixes.add(targetSelector);
+        if (buttonEl) {
+          buttonEl.classList.add('active');
+          buttonEl.innerHTML = '<span class="fix-btn-icon">↩</span> <span class="fix-btn-text">Revert Fix</span>';
+          buttonEl.title = 'Revert live fix back to original DOM state';
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Auditor] Could not toggle preview fix:', err);
+  }
 }
 
 /**
@@ -2848,6 +3180,15 @@ function renderIssuesList() {
         `;
       }
 
+      const fixConfig = getFixConfigForNode(v, node);
+      const isFixActive = Boolean(node.target && activePreviewFixes.has(node.target));
+      const previewBtnHtml = fixConfig && node.target ? `
+        <button type="button" class="btn-preview-fix ${isFixActive ? 'active' : ''}" data-target="${escapeHtml(node.target)}" title="${isFixActive ? 'Revert live fix back to original DOM state' : 'Preview accessible fix live on the page'}">
+          <span class="fix-btn-icon">${isFixActive ? '↩' : '✨'}</span>
+          <span class="fix-btn-text">${isFixActive ? 'Revert Fix' : 'Preview Fix'}</span>
+        </button>
+      ` : '';
+
       return `
         <div class="element-item highlightable" data-node-index="${idx}" title="Click to navigate to and highlight this element on the page">
           <div class="element-item-header">
@@ -2855,10 +3196,13 @@ function renderIssuesList() {
               <strong>Element ${idx + 1} of ${v.affectedCount}:</strong>
               <code>${escapeHtml(node.target || 'DOM Root')}</code>
             </div>
-            <button type="button" class="btn-highlight-element" title="Scroll to and highlight this element on the active page">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>
-              <span>Highlight</span>
-            </button>
+            <div class="element-item-actions">
+              ${previewBtnHtml}
+              <button type="button" class="btn-highlight-element" title="Scroll to and highlight this element on the active page">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>
+                <span>Highlight</span>
+              </button>
+            </div>
           </div>
           <div class="element-meta" style="margin-top: 5px;">
             <strong>HTML:</strong>
@@ -2938,7 +3282,7 @@ function renderIssuesList() {
       }
     });
 
-    // Element row highlight clicks
+    // Element row highlight & preview fix clicks
     const elItems = card.querySelectorAll('.element-item');
     elItems.forEach((elItem) => {
       const idx = parseInt(elItem.getAttribute('data-node-index') || '-1', 10);
@@ -2946,6 +3290,15 @@ function renderIssuesList() {
       if (!node || !node.target) return;
 
       const btn = elItem.querySelector('.btn-highlight-element');
+      const btnFix = elItem.querySelector('.btn-preview-fix');
+      const fixConfig = getFixConfigForNode(v, node);
+
+      btnFix?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (fixConfig && node.target) {
+          togglePreviewFix(node.target, fixConfig.type, fixConfig.payload, btnFix);
+        }
+      });
 
       const triggerHighlight = (btnTarget) => {
         highlightElementOnPage(node.target, {
@@ -2968,7 +3321,7 @@ function renderIssuesList() {
       });
 
       elItem.addEventListener('click', (e) => {
-        if (e.target.closest('.btn-highlight-element')) return;
+        if (e.target.closest('.btn-highlight-element') || e.target.closest('.btn-preview-fix')) return;
         triggerHighlight(btn);
       });
     });

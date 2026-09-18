@@ -1802,8 +1802,12 @@
       let resolvedUrl = '';
 
       if (isHash) {
+        const isSpaRoute = /^#(\/|!)/.test(rawHref);
+        const isTopAnchor = rawHref.toLowerCase() === '#top';
         const targetId = rawHref.slice(1);
-        if (targetId) {
+        if (isTopAnchor || isSpaRoute) {
+          hashTargetExists = true;
+        } else if (targetId) {
           try {
             let decodedId = targetId;
             try {
@@ -1828,7 +1832,8 @@
         resolvedUrl = rawHref;
       } else {
         try {
-          const parsed = new URL(rawHref, window.location.href);
+          const baseUri = document.baseURI || window.location.href;
+          const parsed = new URL(rawHref, baseUri);
           resolvedUrl = parsed.href;
           isExternal = parsed.origin !== window.location.origin;
         } catch (_) {
@@ -1881,6 +1886,11 @@
    * @returns {Promise<Object>} Complete audit report
    */
   window.__runWcagAudit = async function () {
+    // 0. Ensure any simulated preview fixes are cleanly reverted before auditing genuine DOM
+    if (typeof window.__auditforgeRevertAllFixes === 'function') {
+      try { window.__auditforgeRevertAllFixes(); } catch (_) {}
+    }
+
     const startTime = performance.now();
     const pageUrl = window.location.href;
     const pageTitle = document.title || pageUrl;
@@ -3398,17 +3408,39 @@
     
     svg.innerHTML = `
       <defs>
-        <marker id="__af_arrow_normal__" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#0D9FBA" />
+        <!-- Standard Step Arrow (Sleek 9px Chevron, High Contrast, Subtle) -->
+        <marker id="__af_arrow_normal__" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="9" markerHeight="9" orient="auto">
+          <path d="M 1.5 2 L 8.5 5 L 1.5 8 L 3.5 5 Z" fill="#00E5FF" stroke="#000000" stroke-width="0.8" stroke-linejoin="round"/>
         </marker>
-        <marker id="__af_arrow_warn__" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f59e0b" />
+        <!-- Warning Step Arrow (Amber 9px Chevron) -->
+        <marker id="__af_arrow_warn__" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="9" markerHeight="9" orient="auto">
+          <path d="M 1.5 2 L 8.5 5 L 1.5 8 L 3.5 5 Z" fill="#f59e0b" stroke="#000000" stroke-width="0.8" stroke-linejoin="round"/>
+        </marker>
+        <!-- Active Focused Step Arrow (Sky Blue, 11px) -->
+        <marker id="__af_arrow_active__" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="11" markerHeight="11" orient="auto">
+          <path d="M 1.5 1.8 L 9 5 L 1.5 8.2 L 3.8 5 Z" fill="#38bdf8" stroke="#ffffff" stroke-width="0.8" stroke-linejoin="round"/>
         </marker>
         <filter id="__af_glow__" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#0D9FBA" flood-opacity="0.6"/>
+          <feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-color="#00E5FF" flood-opacity="0.5"/>
         </filter>
       </defs>
     `;
+
+    const styleTag = document.createElement('style');
+    styleTag.id = '__af_tab_trail_styles__';
+    styleTag.textContent = `
+      .__af_tab_badge__:hover {
+        transform: scale(1.2) !important;
+        box-shadow: 0 0 12px rgba(0, 229, 255, 0.9) !important;
+      }
+      #__af_tab_trail_bar__ button:hover {
+        filter: brightness(1.18);
+      }
+      #__af_tab_trail_bar__.is-dragging {
+        cursor: grabbing !important;
+      }
+    `;
+    root.appendChild(styleTag);
 
     const badgesContainer = document.createElement('div');
     badgesContainer.id = '__auditforge_tab_badges__';
@@ -3421,30 +3453,40 @@
       top: 16px;
       right: 20px;
       z-index: 2147483647;
-      background: #000000;
+      background: rgba(0, 0, 0, 0.94);
       border: 1px solid #1b6f7e;
       border-radius: 8px;
-      padding: 10px 16px;
-      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.9), 0 0 15px rgba(13, 159, 186, 0.25);
+      padding: 7px 12px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.85), 0 0 15px rgba(13, 159, 186, 0.2);
       color: #e2ebed;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       font-size: 12px;
       display: flex;
       align-items: center;
-      gap: 14px;
+      gap: 10px;
       pointer-events: auto;
-      backdrop-filter: blur(8px);
+      backdrop-filter: blur(10px);
+      cursor: grab;
+      user-select: none;
+      transition: box-shadow 0.15s ease;
     `;
     ctrlBar.innerHTML = `
-      <div style="display: flex; align-items: center; gap: 8px;">
-        <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #0D9FBA; box-shadow: 0 0 8px #0D9FBA;"></span>
-        <strong style="color: #e2ebed; font-size: 13px;">Matt's QA Extension — Tab Trail</strong>
-        <span style="background: rgba(27, 111, 126, 0.28); color: #0D9FBA; border: 1px solid rgba(13, 159, 186, 0.35); padding: 2px 7px; border-radius: 4px; font-size: 11px;">${lastTabOrderElements.length} Focusable Steps</span>
+      <div class="__af_drag_grip__" title="Click and drag to move toolbar anywhere" style="cursor: grab; display: flex; align-items: center; justify-content: center; padding: 2px 3px; color: #00E5FF; opacity: 0.8; font-size: 13px; letter-spacing: -2px; user-select: none;">
+        ⋮⋮
       </div>
-      <div style="display: flex; align-items: center; gap: 8px;">
-        <button id="__af_tab_focus_first__" type="button" style="background: #080f12; border: 1px solid rgba(27, 111, 126, 0.35); color: #0D9FBA; font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 5px; cursor: pointer;">Focus #1</button>
-        <button id="__af_tab_exit_btn__" type="button" style="background: #ef4444; border: none; color: #fff; font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 5px; cursor: pointer;">✕ Exit (Esc)</button>
+      <div class="__af_drag_title__" style="display: flex; align-items: center; gap: 7px; cursor: grab;">
+        <span style="display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #00E5FF; box-shadow: 0 0 6px #00E5FF;"></span>
+        <strong style="color: #e2ebed; font-size: 12px; white-space: nowrap;">Tab Trail</strong>
+        <span id="__af_tab_step_count__" style="background: rgba(27, 111, 126, 0.28); color: #00E5FF; border: 1px solid rgba(13, 159, 186, 0.35); padding: 2px 6px; border-radius: 4px; font-size: 11px; white-space: nowrap;">${lastTabOrderElements.length} Steps</span>
+        <span id="__af_tab_active_step__" style="display: none; background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); padding: 2px 6px; border-radius: 4px; font-size: 11px; white-space: nowrap;"></span>
       </div>
+      <div id="__af_tab_actions_panel__" style="display: flex; align-items: center; gap: 6px;">
+        <button id="__af_tab_mode_btn__" type="button" title="Switch arrow style: Clean Direct vs Subtle Curved" style="background: #080f12; border: 1px solid rgba(27, 111, 126, 0.35); color: #00E5FF; font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 5px; cursor: pointer; display: flex; align-items: center; gap: 3px;">⚡ Direct</button>
+        <button id="__af_tab_refresh_btn__" type="button" title="Recalculate trail for newly opened or moved sections" style="background: #080f12; border: 1px solid rgba(27, 111, 126, 0.35); color: #00E5FF; font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 5px; cursor: pointer; display: flex; align-items: center; gap: 3px;">🔄 Refresh</button>
+        <button id="__af_tab_focus_first__" type="button" style="background: #080f12; border: 1px solid rgba(27, 111, 126, 0.35); color: #00E5FF; font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 5px; cursor: pointer;">Focus #1</button>
+        <button id="__af_tab_exit_btn__" type="button" style="background: #ef4444; border: none; color: #fff; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 5px; cursor: pointer;">✕ Exit</button>
+      </div>
+      <button id="__af_tab_min_btn__" type="button" title="Collapse / Expand toolbar" style="background: transparent; border: 1px solid rgba(27, 111, 126, 0.35); color: #94a3b8; font-size: 11px; line-height: 1; padding: 3px 5px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center;">—</button>
     `;
 
     root.appendChild(svg);
@@ -3452,7 +3494,13 @@
     root.appendChild(ctrlBar);
     document.body.appendChild(root);
 
+
+    let currentCoords = [];
+    let trailArrowMode = 'direct'; // 'direct' = clean straight vectors, 'curved' = gentle bounded arc
+
     function renderTrailGeometry() {
+      const oldCasings = svg.querySelectorAll('path.__af_trail_casing__');
+      oldCasings.forEach(p => p.remove());
       const oldPaths = svg.querySelectorAll('path.__af_trail_path__');
       oldPaths.forEach(p => p.remove());
       badgesContainer.innerHTML = '';
@@ -3465,30 +3513,48 @@
         const el = item.element;
         if (!el || !el.isConnected) return;
 
+        // Check if element is currently hidden
+        const style = window.getComputedStyle(el);
+        if (style.display === 'none' || style.visibility === 'hidden') return;
+
         // Resolve visible interactive target (handles visually hidden inputs and custom labels)
         const targetRes = typeof resolveVisualTarget === 'function' ? resolveVisualTarget(el) : { visualElement: el, rect: el.getBoundingClientRect() };
         const targetEl = item.visualElement || targetRes.visualElement || el;
         const r = targetRes.rect || targetEl.getBoundingClientRect();
 
+        if (r.width === 0 && r.height === 0 && r.top === 0 && r.left === 0) return;
+
+        // Detect if element is fixed (e.g. sticky header or fixed toolbar)
+        let isFixed = false;
+        let p = el;
+        while (p && p !== document.body && p !== document.documentElement) {
+          const pos = window.getComputedStyle(p).position;
+          if (pos === 'fixed') {
+            isFixed = true;
+            break;
+          }
+          p = p.parentElement;
+        }
+
         // Safety clamp so badges and connector lines never fly off-screen
-        const pageX = Math.max(16, (r.left >= 0 ? r.left : 16) + scrollX);
-        const pageY = Math.max(16, (r.top >= 0 ? r.top : 16) + scrollY);
-        const centerX = pageX + Math.max(10, (r.width > 0 ? r.width / 2 : 12));
-        const centerY = pageY + Math.max(10, (r.height > 0 ? r.height / 2 : 12));
+        const rawLeft = r.left >= 0 ? r.left : 12;
+        const rawTop = r.top >= 0 ? r.top : 12;
+        const pageX = Math.max(12, rawLeft + (isFixed ? 0 : scrollX));
+        const pageY = Math.max(12, rawTop + (isFixed ? 0 : scrollY));
 
-        coords.push({ x: centerX, y: centerY, top: pageY, left: pageX, item, el, targetEl, step: idx + 1 });
-
-        const badge = document.createElement('div');
         const isWarn = item.tabIndex > 0;
         const isRadioGroup = !!item.isRadioGroupLeader;
-        const bg = isWarn ? '#f59e0b' : (isRadioGroup ? 'linear-gradient(135deg, #1b6f7e, #127788)' : '#0D9FBA');
+        const bg = isWarn ? '#f59e0b' : (isRadioGroup ? 'linear-gradient(135deg, #1b6f7e, #127788)' : '#00E5FF');
         const textColor = isWarn ? '#000000' : (isRadioGroup ? '#e2ebed' : '#000000');
         const glow = isWarn
-          ? 'rgba(245,158,11,0.8)'
-          : (isRadioGroup ? 'rgba(13,159,186,0.8)' : 'rgba(13,159,186,0.8)');
+          ? 'rgba(245,158,11,0.85)'
+          : (isRadioGroup ? 'rgba(0,229,255,0.85)' : 'rgba(0,229,255,0.85)');
 
+        const badge = document.createElement('div');
+        badge.className = '__af_tab_badge__';
+        badge.setAttribute('data-af-step', String(idx + 1));
         badge.style.cssText = `
-          position: absolute;
+          position: ${isFixed ? 'fixed' : 'absolute'};
           top: ${pageY - 10}px;
           left: ${pageX - 10}px;
           background: ${bg};
@@ -3501,7 +3567,8 @@
           padding: 0 5px;
           text-align: center;
           border-radius: 10px;
-          box-shadow: 0 0 10px ${glow};
+          border: 1px solid rgba(0, 0, 0, 0.4);
+          box-shadow: 0 0 10px ${glow}, 0 2px 4px rgba(0,0,0,0.5);
           pointer-events: auto;
           cursor: pointer;
           z-index: 2147483646;
@@ -3510,6 +3577,7 @@
           align-items: center;
           justify-content: center;
           gap: 3px;
+          transition: transform 0.15s ease, box-shadow 0.15s ease;
         `;
 
         if (isRadioGroup) {
@@ -3529,46 +3597,294 @@
         });
 
         badgesContainer.appendChild(badge);
+
+        // Calculate exact visual center of badge in document SVG space
+        const docBadgeX = isFixed ? (rawLeft + scrollX) : pageX;
+        const docBadgeY = isFixed ? (rawTop + scrollY) : pageY;
+        const badgeRadius = isRadioGroup ? 18 : (idx >= 99 ? 16 : (idx >= 9 ? 13 : 11));
+        const bCenterX = docBadgeX + (isRadioGroup ? 8 : (idx >= 99 ? 6 : (idx >= 9 ? 3 : 0)));
+        const bCenterY = docBadgeY;
+
+        coords.push({
+          centerX: bCenterX,
+          centerY: bCenterY,
+          radius: badgeRadius,
+          top: pageY,
+          left: pageX,
+          rawLeft,
+          rawTop,
+          item,
+          el,
+          targetEl,
+          step: idx + 1,
+          isFixed,
+          badge
+        });
       });
+
+      currentCoords = coords;
 
       for (let i = 0; i < coords.length - 1; i++) {
         const p1 = coords[i];
         const p2 = coords[i + 1];
         const isWarn = p2.item.tabIndex > 0;
         const isRadioGroup = !!p2.item.isRadioGroupLeader;
-        const color = isWarn ? '#f59e0b' : (isRadioGroup ? '#0D9FBA' : '#0D9FBA');
+        const color = isWarn ? '#f59e0b' : '#00E5FF';
         const marker = isWarn ? 'url(#__af_arrow_warn__)' : 'url(#__af_arrow_normal__)';
 
-        const dx = p2.x - p1.x;
-        const dy = p2.y - p1.y;
-        const cx = (p1.x + p2.x) / 2 - dy * 0.12;
-        const cy = (p1.y + p2.y) / 2 + dx * 0.12;
+        const dx = p2.centerX - p1.centerX;
+        const dy = p2.centerY - p1.centerY;
+        const dist = Math.hypot(dx, dy);
 
+        let d = '';
+        if (dist < 20) {
+          // Badges stacked or overlapping: small side loop
+          const sX = p1.centerX + 12;
+          const sY = p1.centerY - 6;
+          const cx = p1.centerX + 32;
+          const cy = p1.centerY;
+          const eX = p2.centerX + 12;
+          const eY = p2.centerY + 6;
+          d = `M ${sX} ${sY} Q ${cx} ${cy} ${eX} ${eY}`;
+        } else {
+          const ux = dx / dist;
+          const uy = dy / dist;
+
+          // Arrow starts cleanly outside Badge 1's boundary
+          const startX = p1.centerX + ux * (p1.radius + 3);
+          const startY = p1.centerY + uy * (p1.radius + 3);
+
+          // Arrowhead tip touches cleanly right outside Badge 2's boundary
+          const endX = p2.centerX - ux * (p2.radius + 4);
+          const endY = p2.centerY - uy * (p2.radius + 4);
+
+          if (trailArrowMode === 'direct') {
+            // Clean, razor-straight direct vector from Badge 1 to Badge 2
+            d = `M ${startX.toFixed(1)} ${startY.toFixed(1)} L ${endX.toFixed(1)} ${endY.toFixed(1)}`;
+          } else {
+            // Smooth, clamped arc with max 22px bow (never wild loops)
+            const maxBow = Math.min(22, Math.max(8, dist * 0.08));
+            const cx = (startX + endX) / 2 - uy * maxBow;
+            const cy = (startY + endY) / 2 + ux * maxBow;
+            d = `M ${startX.toFixed(1)} ${startY.toFixed(1)} Q ${cx.toFixed(1)} ${cy.toFixed(1)} ${endX.toFixed(1)} ${endY.toFixed(1)}`;
+          }
+        }
+
+        // 1. High-contrast subtle dark casing underlay path for legibility
+        const casing = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        casing.classList.add('__af_trail_casing__');
+        casing.setAttribute('data-af-from', String(p1.step));
+        casing.setAttribute('data-af-to', String(p2.step));
+        casing.setAttribute('d', d);
+        casing.setAttribute('stroke', '#000000');
+        casing.setAttribute('stroke-width', '3.5');
+        casing.setAttribute('stroke-linecap', 'round');
+        casing.setAttribute('fill', 'none');
+        casing.setAttribute('opacity', '0.6');
+        svg.appendChild(casing);
+
+        // 2. Clean, subtle core arrow path with 9px chevron marker
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         path.classList.add('__af_trail_path__');
-        path.setAttribute('d', `M ${p1.x} ${p1.y} Q ${cx} ${cy} ${p2.x} ${p2.y}`);
+        path.setAttribute('data-af-from', String(p1.step));
+        path.setAttribute('data-af-to', String(p2.step));
+        path.setAttribute('d', d);
         path.setAttribute('stroke', color);
-        path.setAttribute('stroke-width', '2.5');
-        path.setAttribute('stroke-dasharray', isWarn ? '5,3' : (isRadioGroup ? '6,3' : '6,4'));
+        path.setAttribute('stroke-width', '1.8');
+        path.setAttribute('stroke-linecap', 'round');
+        path.setAttribute('stroke-dasharray', isWarn ? '5,3' : 'none');
         path.setAttribute('fill', 'none');
-        path.setAttribute('opacity', '0.85');
+        path.setAttribute('opacity', '0.95');
         path.setAttribute('marker-end', marker);
         svg.appendChild(path);
       }
     }
 
+
     renderTrailGeometry();
+
+    function refreshTabTrail() {
+      if (!document.getElementById('__auditforge_tab_trail_root__')) return;
+
+      // 1. Re-evaluate tab navigation order against the active DOM
+      evaluateTabNavigationOrder();
+
+      // 2. Adjust root & SVG bounds to current full document scroll dimensions
+      const h = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight, window.innerHeight);
+      const w = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth, window.innerWidth);
+      svg.style.width = `${w}px`;
+      svg.style.height = `${h}px`;
+      root.style.height = `${h}px`;
+
+      // 3. Update control bar counter
+      const counter = document.getElementById('__af_tab_step_count__');
+      if (counter) {
+        counter.textContent = `${lastTabOrderElements.length} Focusable Steps`;
+      }
+
+      // 4. Re-render geometry
+      renderTrailGeometry();
+
+      // 5. Restore active step highlight if focused
+      if (document.activeElement) {
+        updateFocusHighlight(document.activeElement);
+      }
+    }
+
+    let refreshTimer = null;
+    function scheduleRefresh(delay = 60) {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => {
+        refreshTabTrail();
+      }, delay);
+    }
+
+    // Dynamic Observer 1: MutationObserver to catch accordions, details, modal openings, and DOM changes
+    const mutationObserver = new MutationObserver((mutations) => {
+      let needsRefresh = false;
+      for (const m of mutations) {
+        const targetNode = m.target;
+        if (targetNode && targetNode.nodeType === 1) {
+          const el = /** @type {HTMLElement} */ (targetNode);
+          if (el.id === '__auditforge_tab_trail_root__' || el.closest('#__auditforge_tab_trail_root__') || el.closest('#__af_preview_fix_badge__')) {
+            continue;
+          }
+        }
+        needsRefresh = true;
+        break;
+      }
+      if (needsRefresh) {
+        scheduleRefresh(60);
+      }
+    });
+
+    mutationObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['open', 'aria-expanded', 'aria-hidden', 'hidden', 'class', 'style'],
+    });
+
+    // Dynamic Observer 2: ResizeObserver on document root to catch layout shifts and height expansions
+    const resizeObserver = new ResizeObserver(() => {
+      scheduleRefresh(50);
+    });
+    resizeObserver.observe(document.documentElement);
+
+    // Dynamic Listener 3: CSS transition/animation ends on collapsible elements
+    const onTransitionEnd = (e) => {
+      if (e.target && e.target.closest?.('#__auditforge_tab_trail_root__')) return;
+      scheduleRefresh(30);
+    };
+    document.addEventListener('transitionend', onTransitionEnd, { passive: true });
+    document.addEventListener('animationend', onTransitionEnd, { passive: true });
+
+    // Dynamic Listener 4: User clicks on collapsible triggers
+    const onCollapsibleClick = (e) => {
+      const trigger = e.target.closest('summary, button, [aria-expanded], [data-toggle], [data-bs-toggle], [data-collapse], .accordion-button, .collapsible');
+      if (trigger) {
+        scheduleRefresh(40);
+        setTimeout(() => scheduleRefresh(0), 160);
+        setTimeout(() => scheduleRefresh(0), 360);
+      }
+    };
+    document.addEventListener('click', onCollapsibleClick, { passive: true, capture: true });
+
+    // Dynamic Listener 5: Focus tracking with smooth scrolling and visual pulse
+    function updateFocusHighlight(focusedEl) {
+      const stepIdx = lastTabOrderElements.findIndex(it => it.element === focusedEl || it.visualElement === focusedEl);
+      const activeBadge = document.getElementById('__af_tab_active_step__');
+
+      const allBadges = badgesContainer.querySelectorAll('.__af_tab_badge__');
+      allBadges.forEach((b, i) => {
+        if (i === stepIdx) {
+          b.style.transform = 'scale(1.3)';
+          b.style.boxShadow = '0 0 16px #38bdf8, 0 0 26px #0D9FBA';
+          b.style.border = '2px solid #ffffff';
+          b.style.zIndex = '2147483647';
+        } else {
+          b.style.transform = 'scale(1)';
+          b.style.border = 'none';
+          b.style.zIndex = '2147483646';
+        }
+      });
+
+      // Highlight connector path into active element
+      const allPaths = svg.querySelectorAll('path.__af_trail_path__');
+      allPaths.forEach((p, i) => {
+        if (i === stepIdx - 1) {
+          p.setAttribute('stroke-width', '2.6');
+          p.setAttribute('opacity', '1');
+          p.setAttribute('stroke', '#38bdf8');
+          p.setAttribute('stroke-dasharray', 'none');
+          p.setAttribute('marker-end', 'url(#__af_arrow_active__)');
+        } else {
+          const nextItem = lastTabOrderElements[i + 1];
+          const isWarn = nextItem && nextItem.tabIndex > 0;
+          p.setAttribute('stroke-width', '1.8');
+          p.setAttribute('opacity', '0.95');
+          p.setAttribute('stroke', isWarn ? '#f59e0b' : '#00E5FF');
+          p.setAttribute('stroke-dasharray', isWarn ? '5,3' : 'none');
+          p.setAttribute('marker-end', isWarn ? 'url(#__af_arrow_warn__)' : 'url(#__af_arrow_normal__)');
+        }
+      });
+
+      const allCasings = svg.querySelectorAll('path.__af_trail_casing__');
+      allCasings.forEach((c, i) => {
+        if (i === stepIdx - 1) {
+          c.setAttribute('stroke-width', '4.4');
+          c.setAttribute('opacity', '0.8');
+        } else {
+          c.setAttribute('stroke-width', '3.5');
+          c.setAttribute('opacity', '0.6');
+        }
+      });
+
+      if (stepIdx !== -1) {
+        if (activeBadge) {
+          activeBadge.style.display = 'inline-block';
+          activeBadge.textContent = `Active: #${stepIdx + 1}`;
+        }
+        // Smoothly ensure element is comfortably visible in viewport if tabbed off-screen
+        if (focusedEl && typeof focusedEl.getBoundingClientRect === 'function') {
+          const rect = focusedEl.getBoundingClientRect();
+          if (rect.top < 60 || rect.bottom > window.innerHeight - 60) {
+            focusedEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }
+      } else if (activeBadge) {
+        activeBadge.style.display = 'none';
+      }
+    }
+
+    const onFocusIn = (e) => {
+      updateFocusHighlight(e.target);
+    };
+    document.addEventListener('focusin', onFocusIn, true);
+
+    // Dynamic Listener 6: Throttled scroll handling to keep fixed elements synchronized
+    let scrollRaf = null;
+    const onScroll = () => {
+      if (scrollRaf) return;
+      scrollRaf = requestAnimationFrame(() => {
+        scrollRaf = null;
+        currentCoords.forEach(c => {
+          if (c.isFixed && c.badge) {
+            const curRect = c.targetEl.getBoundingClientRect();
+            c.badge.style.top = `${curRect.top - 10}px`;
+            c.badge.style.left = `${curRect.left - 10}px`;
+          }
+        });
+      });
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
 
     let resizeTimer = null;
     const onResize = () => {
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => {
-        const h = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight, window.innerHeight);
-        const w = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth, window.innerWidth);
-        svg.style.width = `${w}px`;
-        svg.style.height = `${h}px`;
-        renderTrailGeometry();
-      }, 150);
+        scheduleRefresh(0);
+      }, 100);
     };
 
     const onKeyDown = (e) => {
@@ -3579,6 +3895,135 @@
 
     window.addEventListener('resize', onResize, { passive: true });
     window.addEventListener('keydown', onKeyDown, true);
+
+    // Make Control Bar Draggable
+    let isDragging = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let barStartX = 0;
+    let barStartY = 0;
+
+    const onMouseDown = (e) => {
+      if (e.target.closest('button') || e.target.closest('input')) return;
+      isDragging = true;
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+      const rect = ctrlBar.getBoundingClientRect();
+      barStartX = rect.left;
+      barStartY = rect.top;
+      ctrlBar.classList.add('is-dragging');
+      document.body.style.userSelect = 'none';
+
+      document.addEventListener('mousemove', onMouseMove, { capture: true });
+      document.addEventListener('mouseup', onMouseUp, { capture: true });
+    };
+
+    const onMouseMove = (e) => {
+      if (!isDragging) return;
+      e.preventDefault();
+      const dx = e.clientX - dragStartX;
+      const dy = e.clientY - dragStartY;
+
+      const barWidth = ctrlBar.offsetWidth || 340;
+      const barHeight = ctrlBar.offsetHeight || 36;
+
+      const maxLeft = Math.max(6, window.innerWidth - barWidth - 6);
+      const maxTop = Math.max(6, window.innerHeight - barHeight - 6);
+
+      const nextLeft = Math.max(6, Math.min(maxLeft, barStartX + dx));
+      const nextTop = Math.max(6, Math.min(maxTop, barStartY + dy));
+
+      ctrlBar.style.left = `${nextLeft}px`;
+      ctrlBar.style.top = `${nextTop}px`;
+      ctrlBar.style.right = 'auto';
+      ctrlBar.style.bottom = 'auto';
+    };
+
+    const onMouseUp = () => {
+      if (!isDragging) return;
+      isDragging = false;
+      ctrlBar.classList.remove('is-dragging');
+      document.body.style.userSelect = '';
+      document.removeEventListener('mousemove', onMouseMove, { capture: true });
+      document.removeEventListener('mouseup', onMouseUp, { capture: true });
+    };
+
+    ctrlBar.addEventListener('mousedown', onMouseDown);
+
+    // Touch support for dragging
+    const onTouchStart = (e) => {
+      if (e.target.closest('button')) return;
+      const t = e.touches[0];
+      if (!t) return;
+      isDragging = true;
+      dragStartX = t.clientX;
+      dragStartY = t.clientY;
+      const rect = ctrlBar.getBoundingClientRect();
+      barStartX = rect.left;
+      barStartY = rect.top;
+      document.addEventListener('touchmove', onTouchMove, { passive: false });
+      document.addEventListener('touchend', onTouchEnd);
+    };
+
+    const onTouchMove = (e) => {
+      if (!isDragging) return;
+      const t = e.touches[0];
+      if (!t) return;
+      e.preventDefault();
+      const dx = t.clientX - dragStartX;
+      const dy = t.clientY - dragStartY;
+      const barWidth = ctrlBar.offsetWidth || 340;
+      const barHeight = ctrlBar.offsetHeight || 36;
+      const maxLeft = Math.max(6, window.innerWidth - barWidth - 6);
+      const maxTop = Math.max(6, window.innerHeight - barHeight - 6);
+      const nextLeft = Math.max(6, Math.min(maxLeft, barStartX + dx));
+      const nextTop = Math.max(6, Math.min(maxTop, barStartY + dy));
+      ctrlBar.style.left = `${nextLeft}px`;
+      ctrlBar.style.top = `${nextTop}px`;
+      ctrlBar.style.right = 'auto';
+    };
+
+    const onTouchEnd = () => {
+      isDragging = false;
+      document.removeEventListener('touchmove', onTouchMove);
+      document.removeEventListener('touchend', onTouchEnd);
+    };
+
+    ctrlBar.addEventListener('touchstart', onTouchStart, { passive: true });
+
+    // Minimize / Expand Toolbar Toggle
+    let isMinimized = false;
+    const minBtn = document.getElementById('__af_tab_min_btn__');
+    const actionsPanel = document.getElementById('__af_tab_actions_panel__');
+
+    minBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      isMinimized = !isMinimized;
+      if (isMinimized) {
+        if (actionsPanel) actionsPanel.style.display = 'none';
+        minBtn.textContent = '⛶';
+        minBtn.title = 'Expand toolbar';
+        ctrlBar.style.padding = '5px 8px';
+      } else {
+        if (actionsPanel) actionsPanel.style.display = 'flex';
+        minBtn.textContent = '—';
+        minBtn.title = 'Collapse toolbar';
+        ctrlBar.style.padding = '7px 12px';
+      }
+    });
+
+    document.getElementById('__af_tab_mode_btn__')?.addEventListener('click', () => {
+      trailArrowMode = trailArrowMode === 'direct' ? 'curved' : 'direct';
+      const btn = document.getElementById('__af_tab_mode_btn__');
+      if (btn) {
+        btn.innerHTML = trailArrowMode === 'direct' ? '⚡ Direct' : '🌊 Curved';
+      }
+      renderTrailGeometry();
+    });
+
+    document.getElementById('__af_tab_refresh_btn__')?.addEventListener('click', () => {
+      refreshTabTrail();
+    });
 
     document.getElementById('__af_tab_focus_first__')?.addEventListener('click', () => {
       if (lastTabOrderElements[0]?.element) {
@@ -3592,9 +4037,23 @@
     });
 
     window.__auditforgeTabTrailCleanup = () => {
+      ctrlBar.removeEventListener('mousedown', onMouseDown);
+      ctrlBar.removeEventListener('touchstart', onTouchStart);
+      document.removeEventListener('mousemove', onMouseMove, true);
+      document.removeEventListener('mouseup', onMouseUp, true);
+      document.removeEventListener('touchmove', onTouchMove);
+      document.removeEventListener('touchend', onTouchEnd);
+      mutationObserver.disconnect();
+      resizeObserver.disconnect();
+      document.removeEventListener('transitionend', onTransitionEnd);
+      document.removeEventListener('animationend', onTransitionEnd);
+      document.removeEventListener('click', onCollapsibleClick, true);
+      document.removeEventListener('focusin', onFocusIn, true);
+      window.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', onResize);
       window.removeEventListener('keydown', onKeyDown, true);
     };
+
 
     return { active: true, totalSteps: lastTabOrderElements.length };
   };
@@ -3791,3 +4250,252 @@
     return { active: true, filter: filterType };
   };
 })();
+
+/**
+ * Live DOM Preview Fix Engine
+ * Allows users to preview accessible fixes (contrast, ARIA, target size, link href) live on the active page.
+ */
+(() => {
+  // Map of Element -> original styles & attributes
+  const activeFixes = new Map();
+
+  function removePreviewBadge() {
+    const existing = document.getElementById('__af_preview_fix_badge__');
+    if (existing) existing.remove();
+  }
+
+  function showPreviewBadge(el, labelText, onRevert) {
+    removePreviewBadge();
+    const badge = document.createElement('div');
+    badge.id = '__af_preview_fix_badge__';
+    badge.style.cssText = `
+      position: fixed;
+      bottom: 22px;
+      right: 22px;
+      z-index: 2147483647;
+      background: #060a0c;
+      border: 1.5px solid #10b981;
+      border-radius: 999px;
+      padding: 7px 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.85), 0 0 20px rgba(16, 185, 129, 0.45);
+      color: #e2ebed;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 11.5px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      user-select: none;
+      pointer-events: auto;
+      transition: all 0.2s ease;
+    `;
+    badge.innerHTML = `
+      <span style="display: flex; align-items: center; gap: 7px;">
+        <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #10b981; box-shadow: 0 0 8px #10b981;"></span>
+        <span><strong style="color: #34d399;">Previewing Fix:</strong> ${labelText}</span>
+      </span>
+      <button id="__af_preview_revert_btn__" type="button" style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.45); color: #34d399; font-size: 10.5px; font-weight: 600; padding: 2.5px 10px; border-radius: 12px; cursor: pointer; transition: all 0.15s ease;">↩ Revert</button>
+    `;
+
+    badge.querySelector('#__af_preview_revert_btn__')?.addEventListener('click', () => {
+      if (typeof onRevert === 'function') onRevert();
+    });
+
+    document.body.appendChild(badge);
+  }
+
+  window.__auditforgePreviewFix = function(selector, fixType, payload = {}) {
+    try {
+      const el = document.querySelector(selector);
+      if (!el) return { success: false, error: 'Element not found in DOM' };
+
+      // 1. If not already saved, backup the original state
+      if (!activeFixes.has(el)) {
+        activeFixes.set(el, {
+          styleColor: el.style.color,
+          styleBg: el.style.backgroundColor,
+          styleMinWidth: el.style.minWidth,
+          styleMinHeight: el.style.minHeight,
+          styleDisplay: el.style.display,
+          styleAlignItems: el.style.alignItems,
+          styleJustifyContent: el.style.justifyContent,
+          styleOutline: el.style.outline,
+          styleBoxShadow: el.style.boxShadow,
+          styleTextDecoration: el.style.textDecoration,
+          styleTextUnderlineOffset: el.style.textUnderlineOffset,
+          styleTextDecorationThickness: el.style.textDecorationThickness,
+          styleFontWeight: el.style.fontWeight,
+          ariaLabel: el.getAttribute('aria-label'),
+          alt: el.getAttribute('alt'),
+          href: el.getAttribute('href'),
+          role: el.getAttribute('role'),
+          tabindex: el.getAttribute('tabindex'),
+          title: el.getAttribute('title'),
+          ariaHidden: el.getAttribute('aria-hidden'),
+          docLang: (fixType === 'html-lang') ? document.documentElement.getAttribute('lang') : null,
+        });
+      }
+
+      let labelDesc = 'Accessible Adjustment';
+
+      // 2. Apply fix based on fixType
+      if (fixType === 'contrast') {
+        const fg = payload.suggestedFg || payload.fgColor;
+        const bg = payload.suggestedBg || payload.bgColor;
+        if (fg) {
+          el.style.setProperty('color', fg, 'important');
+        }
+        if (bg && bg !== 'transparent') {
+          el.style.setProperty('background-color', bg, 'important');
+        }
+        labelDesc = `Contrast ${payload.suggestedFg ? `Text: ${payload.suggestedFg}` : ''} ${payload.suggestedBg ? `Bg: ${payload.suggestedBg}` : ''} (${payload.suggestedRatio || 'WCAG AA Pass'})`;
+      } else if (fixType === 'link-distinguish' || fixType === 'link-in-text-block') {
+        el.style.setProperty('text-decoration', 'underline', 'important');
+        el.style.setProperty('text-underline-offset', '3px', 'important');
+        el.style.setProperty('text-decoration-thickness', '1.5px', 'important');
+        labelDesc = 'Distinguishable Link: Underline & 3px offset applied (WCAG 1.4.1)';
+      } else if (fixType === 'aria-label' || fixType === 'button-name' || fixType === 'link-name') {
+        const label = payload.recommendedLabel || payload.accessibleName || 'Action';
+        el.setAttribute('aria-label', label);
+        labelDesc = `ARIA Label: "${label}"`;
+      } else if (fixType === 'image-alt') {
+        const alt = payload.recommendedAlt || payload.accessibleName || 'Descriptive image summary';
+        el.setAttribute('alt', alt);
+        labelDesc = `Image Alt: "${alt}"`;
+      } else if (fixType === 'target-size') {
+        el.style.setProperty('min-width', '24px', 'important');
+        el.style.setProperty('min-height', '24px', 'important');
+        el.style.setProperty('display', 'inline-flex', 'important');
+        el.style.setProperty('align-items', 'center', 'important');
+        el.style.setProperty('justify-content', 'center', 'important');
+        labelDesc = 'Target Size: min 24×24px (WCAG 2.5.8)';
+      } else if (fixType === 'frame-title') {
+        const title = payload.recommendedTitle || 'Embedded content';
+        el.setAttribute('title', title);
+        labelDesc = `Frame Title: "${title}" (WCAG 4.1.2)`;
+      } else if (fixType === 'html-lang') {
+        const lang = payload.lang || 'en';
+        document.documentElement.setAttribute('lang', lang);
+        labelDesc = `HTML Language: lang="${lang}" (WCAG 3.1.1)`;
+      } else if (fixType === 'aria-hidden-focus') {
+        el.removeAttribute('aria-hidden');
+        labelDesc = 'Removed aria-hidden from interactive element (WCAG 4.1.2)';
+      } else if (fixType === 'tabindex') {
+        el.setAttribute('tabindex', payload.tabindex || '0');
+        labelDesc = 'Keyboard Focus: Restored tabindex="0" (WCAG 2.1.1)';
+      } else if (fixType === 'link') {
+        if (payload.suggestedUrl) {
+          el.setAttribute('href', payload.suggestedUrl);
+          labelDesc = `Link Destination: ${payload.suggestedUrl}`;
+        } else {
+          el.setAttribute('role', 'button');
+          if (!el.getAttribute('tabindex')) el.setAttribute('tabindex', '0');
+          labelDesc = 'Converted to Accessible Button Role';
+        }
+      }
+
+      // Visual indicator outline
+      el.style.setProperty('outline', '2.5px dashed #10b981', 'important');
+      el.style.setProperty('box-shadow', '0 0 14px rgba(16, 185, 129, 0.45)', 'important');
+
+      // Scroll smoothly into view (except for html tag)
+      if (el !== document.documentElement && el !== document.body) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+      }
+
+      // In-page badge
+      showPreviewBadge(el, labelDesc, () => {
+        window.__auditforgeRevertFix(selector);
+      });
+
+      return { success: true, isFixed: true, labelDesc };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  };
+
+  function restoreElement(el, prev) {
+    if (!el || !prev) return;
+    el.style.color = prev.styleColor;
+    el.style.backgroundColor = prev.styleBg;
+    el.style.minWidth = prev.styleMinWidth;
+    el.style.minHeight = prev.styleMinHeight;
+    el.style.display = prev.styleDisplay;
+    el.style.alignItems = prev.styleAlignItems;
+    el.style.justifyContent = prev.styleJustifyContent;
+    el.style.outline = prev.styleOutline;
+    el.style.boxShadow = prev.styleBoxShadow;
+
+    if (prev.styleTextDecoration !== undefined) el.style.textDecoration = prev.styleTextDecoration;
+    if (prev.styleTextUnderlineOffset !== undefined) el.style.textUnderlineOffset = prev.styleTextUnderlineOffset;
+    if (prev.styleTextDecorationThickness !== undefined) el.style.textDecorationThickness = prev.styleTextDecorationThickness;
+    if (prev.styleFontWeight !== undefined) el.style.fontWeight = prev.styleFontWeight;
+
+    if (prev.ariaLabel !== null) el.setAttribute('aria-label', prev.ariaLabel);
+    else el.removeAttribute('aria-label');
+
+    if (prev.alt !== null) el.setAttribute('alt', prev.alt);
+    else el.removeAttribute('alt');
+
+    if (prev.href !== null) el.setAttribute('href', prev.href);
+    else el.removeAttribute('href');
+
+    if (prev.role !== null) el.setAttribute('role', prev.role);
+    else el.removeAttribute('role');
+
+    if (prev.tabindex !== null) el.setAttribute('tabindex', prev.tabindex);
+    else el.removeAttribute('tabindex');
+
+    if (prev.title !== null) el.setAttribute('title', prev.title);
+    else el.removeAttribute('title');
+
+    if (prev.ariaHidden !== null) el.setAttribute('aria-hidden', prev.ariaHidden);
+    else el.removeAttribute('aria-hidden');
+
+    if (prev.docLang !== undefined && prev.docLang !== null) {
+      if (prev.docLang) document.documentElement.setAttribute('lang', prev.docLang);
+      else document.documentElement.removeAttribute('lang');
+    }
+  }
+
+  window.__auditforgeRevertFix = function(selector) {
+    try {
+      const el = document.querySelector(selector);
+      if (!el || !activeFixes.has(el)) {
+        if (activeFixes.size === 0) removePreviewBadge();
+        return { success: true, isFixed: false };
+      }
+
+      const prev = activeFixes.get(el);
+      restoreElement(el, prev);
+      activeFixes.delete(el);
+
+      if (activeFixes.size === 0) {
+        removePreviewBadge();
+      }
+
+      return { success: true, isFixed: false };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  };
+
+  window.__auditforgeRevertAllFixes = function() {
+    try {
+      for (const [el, prev] of activeFixes.entries()) {
+        restoreElement(el, prev);
+      }
+      activeFixes.clear();
+      removePreviewBadge();
+      return { success: true, isFixed: false };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  };
+
+  window.__auditforgeIsFixActive = function(selector) {
+    const el = document.querySelector(selector);
+    return Boolean(el && activeFixes.has(el));
+  };
+})();
+
