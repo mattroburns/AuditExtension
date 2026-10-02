@@ -2236,6 +2236,33 @@ function evaluateMobileResponsiveLayout(activeDeviceId = 'iphone-16-pro', option
 
   // Detect if document is rendered at or near mobile viewport width (e.g. inside mobile simulator iframe)
   const isDocRenderedAtMobileWidth = win.innerWidth <= (activeDevice.width + 50) || (doc !== document && doc.body);
+  const isSimulated = Boolean(options.isSimulated || options.fromSimulator || window.__af_active_mobile_simulator_open || isDocRenderedAtMobileWidth);
+
+  // If simulation is required and page is not currently rendered at mobile viewport width,
+  // do not flag false-positive desktop overflow/overlap warnings before simulation is opened.
+  if (options.requireSimulation && !isSimulated) {
+    return {
+      isSimulated: false,
+      requiresSimulation: true,
+      activeDeviceId,
+      activeDevice,
+      availableDevices: allDevices,
+      mobileScore: 100,
+      grade: 'A+',
+      riskLevel: 'Low',
+      issues: [],
+      issuesByDevice,
+      summary: {
+        totalIssues: 0,
+        overlapsCount: 0,
+        overflowsCount: 0,
+        disjointedStepsCount: 0,
+        touchTargetCount: 0,
+        viewportMetaCount: 0,
+        stickyCount: 0,
+      },
+    };
+  }
 
   // Helper to test if element is visible
   function isElementVisible(el) {
@@ -2857,6 +2884,8 @@ function evaluateMobileResponsiveLayout(activeDeviceId = 'iphone-16-pro', option
   issues.sort((a, b) => (sevOrder[a.severity] || 5) - (sevOrder[b.severity] || 5));
 
   return {
+    isSimulated: true,
+    requiresSimulation: false,
     mobileScore,
     grade,
     riskLevel,
@@ -4083,6 +4112,8 @@ function highlightInMobileSimulator(targetSelector, meta = {}) {
 function startMobileSimulator(options = {}) {
   stopMobileSimulator();
 
+  window.__af_active_mobile_simulator_open = true;
+
   let currentDeviceId = options.deviceId || 'iphone-16-pro';
   let isLandscape = Boolean(options.landscape);
 
@@ -4829,6 +4860,7 @@ function startMobileSimulator(options = {}) {
 }
 
 function stopMobileSimulator() {
+  window.__af_active_mobile_simulator_open = false;
   if (typeof mobileSimCleanup === 'function') {
     mobileSimCleanup();
     mobileSimCleanup = null;
@@ -5146,9 +5178,23 @@ function stopMobileSimulator() {
     }
 
     // 7. Run Mobile & Responsive Layout Audit
+    // Only flag layout issues when rendered in mobile simulation to prevent desktop false alarms
     let mobileLayoutData = null;
     try {
-      mobileLayoutData = evaluateMobileResponsiveLayout('iphone-16-pro');
+      if (window.__af_active_mobile_simulator_open) {
+        const mobSimRoot = document.getElementById('__auditforge_mobile_sim_root__');
+        const mobIframe = mobSimRoot?.querySelector('iframe');
+        const simDoc = mobIframe ? (mobIframe.contentDocument || mobIframe.contentWindow?.document) : null;
+        if (simDoc) {
+          mobileLayoutData = evaluateMobileResponsiveLayout(window.__af_active_mobile_device || 'iphone-16-pro', {
+            rootDoc: simDoc,
+            isSimulated: true
+          });
+        }
+      }
+      if (!mobileLayoutData) {
+        mobileLayoutData = evaluateMobileResponsiveLayout('iphone-16-pro', { requireSimulation: true });
+      }
     } catch (mobileErr) {
       console.warn('[WCAG Auditor] Mobile layout evaluation notice:', mobileErr);
     }

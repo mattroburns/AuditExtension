@@ -1047,7 +1047,7 @@
     // =========================================================================
     // SECTION 5: MOBILE & RESPONSIVE LAYOUT ASSESSMENT
     // =========================================================================
-    if (auditData.mobileLayout) {
+    if (auditData.mobileLayout && auditData.mobileLayout.isSimulated !== false && !auditData.mobileLayout.requiresSimulation) {
       addDarkPage();
       let mobY = 36;
 

@@ -1819,22 +1819,7 @@ function renderScorecard(audit) {
     }
 
     // 5. Mobile Layout Barriers
-    const mobileLayout = audit.mobileLayout;
-    const mobileFailures = mobileLayout?.summary?.totalIssues ?? (mobileLayout?.issues?.length || 0);
-    const kpiMobVal = document.getElementById('kpi-mobile-count');
-    const kpiMobCard = document.getElementById('kpi-card-mobile');
-    if (kpiMobVal) {
-      kpiMobVal.textContent = mobileFailures === 0 ? '✓ 0' : String(mobileFailures);
-      if (kpiMobCard) {
-        if (mobileFailures > 0) {
-          kpiMobCard.classList.remove('kpi-zero-failures');
-          kpiMobCard.classList.add('kpi-has-failures');
-        } else {
-          kpiMobCard.classList.remove('kpi-has-failures');
-          kpiMobCard.classList.add('kpi-zero-failures');
-        }
-      }
-    }
+    updateMobileKpiCard(audit.mobileLayout);
 
     // Screen Reader Compatibility Metrics
     const srScore = audit.screenReaderScore !== undefined ? audit.screenReaderScore : 100;
@@ -2714,6 +2699,37 @@ let currentMobileDevice = 'iphone-16-pro';
 let currentMobileFilter = 'all';
 
 /**
+ * Updates KPI card 5 in the executive dashboard
+ * @param {Object} [mobileLayout]
+ */
+function updateMobileKpiCard(mobileLayout) {
+  const isSimulated = Boolean(mobileLayout && mobileLayout.isSimulated !== false && !mobileLayout.requiresSimulation);
+  const mobileFailures = isSimulated ? (mobileLayout?.summary?.totalIssues ?? (mobileLayout?.issues?.length || 0)) : 0;
+  const kpiMobVal = document.getElementById('kpi-mobile-count');
+  const kpiMobCard = document.getElementById('kpi-card-mobile');
+  if (kpiMobVal) {
+    if (!isSimulated) {
+      kpiMobVal.textContent = 'Simulate';
+      if (kpiMobCard) {
+        kpiMobCard.classList.remove('kpi-has-failures');
+        kpiMobCard.classList.remove('kpi-zero-failures');
+      }
+    } else {
+      kpiMobVal.textContent = mobileFailures === 0 ? '✓ 0' : String(mobileFailures);
+      if (kpiMobCard) {
+        if (mobileFailures > 0) {
+          kpiMobCard.classList.remove('kpi-zero-failures');
+          kpiMobCard.classList.add('kpi-has-failures');
+        } else {
+          kpiMobCard.classList.remove('kpi-has-failures');
+          kpiMobCard.classList.add('kpi-zero-failures');
+        }
+      }
+    }
+  }
+}
+
+/**
  * Renders the Mobile & Responsive Layout Audit findings
  * @param {Object} mobileLayout
  */
@@ -2725,10 +2741,59 @@ function renderMobileSection(mobileLayout) {
   const stepsEl = document.getElementById('mobile-steps-count');
   const touchEl = document.getElementById('mobile-touch-count');
 
+  updateMobileKpiCard(mobileLayout);
+
   if (!mobileLayout) {
     if (badgeEl) badgeEl.textContent = '--/100 Mobile';
     if (container) {
       container.innerHTML = '<div class="mobile-empty-state"><p class="mobile-empty-desc">Run an audit to evaluate mobile responsive layout.</p></div>';
+    }
+    return;
+  }
+
+  const isSimulated = Boolean(mobileLayout.isSimulated !== false && !mobileLayout.requiresSimulation);
+
+  if (!isSimulated) {
+    if (badgeEl) {
+      badgeEl.textContent = 'Simulate to Audit';
+      badgeEl.style.color = '#38bdf8';
+      badgeEl.style.borderColor = 'rgba(56, 189, 248, 0.4)';
+      badgeEl.style.background = 'rgba(56, 189, 248, 0.12)';
+    }
+    if (overlapEl) overlapEl.textContent = '-';
+    if (overflowEl) overflowEl.textContent = '-';
+    if (stepsEl) stepsEl.textContent = '-';
+    if (touchEl) touchEl.textContent = '-';
+
+    const fAll = document.getElementById('mob-filter-count-all');
+    const fOver = document.getElementById('mob-filter-count-overflow');
+    const fOverlap = document.getElementById('mob-filter-count-overlap');
+    const fSteps = document.getElementById('mob-filter-count-steps');
+    const fTouch = document.getElementById('mob-filter-count-touch');
+    if (fAll) fAll.textContent = '0';
+    if (fOver) fOver.textContent = '0';
+    if (fOverlap) fOverlap.textContent = '0';
+    if (fSteps) fSteps.textContent = '0';
+    if (fTouch) fTouch.textContent = '0';
+
+    if (container) {
+      const devName = (mobileLayout?.availableDevices && mobileLayout.availableDevices.find(d => d.id === currentMobileDevice)?.name) || 'Mobile';
+      container.innerHTML = `
+        <div class="mobile-empty-state" style="padding: 24px 16px; text-align: center;">
+          <div style="width: 44px; height: 44px; margin: 0 auto 12px; border-radius: 12px; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.25); display: flex; align-items: center; justify-content: center; color: #38bdf8;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+          </div>
+          <div class="mobile-empty-title" style="font-size: 14px; font-weight: 700; color: #f1f5f9; margin-bottom: 6px;">Simulation Required for Responsive Audit</div>
+          <div class="mobile-empty-desc" style="font-size: 12px; color: #94a3b8; max-width: 380px; margin: 0 auto 16px; line-height: 1.5;">To eliminate false alarms caused by desktop CSS, responsive layout errors (content too wide, overlapping controls, disrupted steppers) only evaluate inside a simulated mobile viewport.</div>
+          <button type="button" class="btn-launch-sim" id="btn-quick-launch-sim" style="display: inline-flex; align-items: center; gap: 8px; padding: 8px 18px; background: rgba(56, 189, 248, 0.18); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.2s ease;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+            <span>Launch ${devName} Simulator</span>
+          </button>
+        </div>
+      `;
+      container.querySelector('#btn-quick-launch-sim')?.addEventListener('click', () => {
+        document.getElementById('btn-launch-mobile-sim')?.click();
+      });
     }
     return;
   }
