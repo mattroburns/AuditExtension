@@ -9,9 +9,29 @@
 
 (function () {
   /**
-   * Latest WCAG 2.2 AA, 2.1 AA, 2.0 AA tags
+   * Latest normative WCAG 2.2 AA, 2.1 AA, 2.0 AA tags (excludes non-normative best practices)
    */
-  const WCAG_22_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22a', 'wcag22aa', 'best-practice'];
+  const WCAG_22_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22a', 'wcag22aa'];
+
+  /**
+   * Identifies elements that belong to the extension's HUDs, overlays, or injected UI
+   */
+  function isExtensionElement(el) {
+    if (!el) return false;
+    if (el.closest) {
+      if (el.closest('[data-auditforge-ext="true"]')) return true;
+      if (el.closest('#__auditforge_mobile_sim_root__')) return true;
+      if (el.closest('#__auditforge_overlay_root__')) return true;
+      if (el.closest('#__auditforge_highlighter_root__')) return true;
+      if (el.closest('#__auditforge_voiceover_hud__')) return true;
+      if (el.closest('#__auditforge_tab_trail_svg__')) return true;
+      if (el.closest('.af-mob-drawer') || el.closest('.af-mob-chassis') || el.closest('.af-mob-header')) return true;
+      if (el.closest('[id*="__auditforge"]') || el.closest('[id*="__af_"]')) return true;
+    }
+    const id = el.id || '';
+    if (id.includes('__auditforge') || id.includes('__af_')) return true;
+    return false;
+  }
 
   function parseColor(col) {
     if (!col || typeof col !== 'string') return [0, 0, 0];
@@ -2025,6 +2045,2815 @@
     return results;
   }
 
+
+  // =========================================================================
+  // MOBILE & RESPONSIVE LAYOUT AUDIT ENGINE & VIEWPORT SIMULATOR
+  // =========================================================================
+// @ts-nocheck
+  /**
+   * Robust element finder supporting selectors, arrays, text matching, and iframe/rootDoc contexts
+   * @param {string|string[]|Element} target
+   * @param {Document} [targetDoc]
+   * @param {Object} [meta]
+   * @returns {Element|null}
+   */
+  function findElement(target, targetDoc = document, meta = {}) {
+    if (!target) return null;
+    if (meta && meta.__af_elA && targetDoc && targetDoc.contains(meta.__af_elA)) {
+      return meta.__af_elA;
+    }
+    if (meta && meta.__af_elB && targetDoc && targetDoc.contains(meta.__af_elB)) {
+      return meta.__af_elB;
+    }
+    if (target && (target.nodeType === 1 || (typeof Element !== 'undefined' && target instanceof Element))) {
+      return typeof isExtensionElement === 'function' && isExtensionElement(target) ? null : target;
+    }
+
+    const tStr = typeof target === 'string' ? target.trim() : (Array.isArray(target) ? target.join(' ') : String(target || ''));
+    if (tStr.includes('__auditforge') || tStr.includes('__af_')) return null;
+
+    // Handle array of selectors (e.g. iframe traversal from axe-core)
+    if (Array.isArray(target)) {
+      if (target.length === 1) return findElement(target[0], targetDoc, meta);
+      let currentDoc = targetDoc;
+      let foundEl = null;
+      for (let i = 0; i < target.length; i++) {
+        const sel = target[i];
+        if (!currentDoc || sel.includes('__auditforge') || sel.includes('__af_')) break;
+        try {
+          foundEl = currentDoc.querySelector(sel);
+          if (foundEl && (foundEl.tagName === 'IFRAME' || foundEl.tagName === 'FRAME')) {
+            try {
+              currentDoc = foundEl.contentDocument || foundEl.contentWindow?.document;
+            } catch (_) {
+              return (typeof isExtensionElement === 'function' && isExtensionElement(foundEl)) ? null : foundEl;
+            }
+          }
+        } catch (_) {
+          break;
+        }
+      }
+      if (foundEl && (!isExtensionElement || !isExtensionElement(foundEl))) return foundEl;
+    }
+
+    const selectorStr = typeof target === 'string' ? target.trim() : String(target).trim();
+    if (!selectorStr) return null;
+
+    // Root document scope checks
+    if (selectorStr === 'html' || selectorStr === ':root') return targetDoc.documentElement;
+    if (selectorStr === 'body') return targetDoc.body;
+
+    // 1. Direct querySelector
+    try {
+      const el = targetDoc.querySelector(selectorStr);
+      if (el && (!isExtensionElement || !isExtensionElement(el))) return el;
+    } catch (_) {}
+
+    // 2. Container ID scoping: if selector contains #id, search from that container
+    const idMatch = selectorStr.match(/#([a-zA-Z0-9_-]+)/);
+    if (idMatch) {
+      const containerId = idMatch[1];
+      try {
+        const container = targetDoc.getElementById(containerId);
+        if (container && (!isExtensionElement || !isExtensionElement(container))) {
+          if (selectorStr.endsWith(`#${containerId}`) || !selectorStr.includes(' ')) return container;
+          const afterId = selectorStr.split(`#${containerId}`)[1].replace(/^\s*>\s*/, '').trim();
+          if (afterId) {
+            try {
+              const subEl = container.querySelector(afterId);
+              if (subEl && (!isExtensionElement || !isExtensionElement(subEl))) return subEl;
+            } catch (_) {}
+            const lastTagMatch = afterId.match(/([a-z0-9-]+)(?::[^\s>]+)?$/i);
+            if (lastTagMatch) {
+              const tag = lastTagMatch[1];
+              const subCandidates = Array.from(container.querySelectorAll(tag));
+              if (meta && meta.html) {
+                const snippet = meta.html.slice(0, 45);
+                const matched = subCandidates.find(c => (!isExtensionElement || !isExtensionElement(c)) && c.outerHTML && c.outerHTML.includes(snippet));
+                if (matched) return matched;
+              }
+              if (meta && (meta.text || meta.textA)) {
+                const q = (meta.text || meta.textA).trim().toLowerCase();
+                const matched = subCandidates.find(c => (!isExtensionElement || !isExtensionElement(c)) && (c.innerText || c.textContent || '').trim().toLowerCase().includes(q));
+                if (matched) return matched;
+              }
+              if (subCandidates.length > 0) return subCandidates[0];
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 3. Direct ID lookup if selector contains #id
+    if (selectorStr.startsWith('#') && !selectorStr.includes(' ') && !selectorStr.includes('>') && !selectorStr.includes(':')) {
+      try {
+        const el = targetDoc.getElementById(selectorStr.slice(1));
+        if (el && (!isExtensionElement || !isExtensionElement(el))) return el;
+      } catch (_) {}
+    }
+
+    // 4. Escape CSS identifiers (colons, dots, slashes in Tailwind / React / Vue classes)
+    try {
+      const escaped = selectorStr.replace(/#([^\s>+~.:[\]]+)/g, (_, id) => `#${CSS.escape(id)}`);
+      const el = targetDoc.querySelector(escaped);
+      if (el && (!isExtensionElement || !isExtensionElement(el))) return el;
+    } catch (_) {}
+
+    // 5. Terminal segment fallback (rightmost component)
+    const parts = selectorStr.split(/\s*>\s*|\s+/).filter(Boolean);
+    if (parts.length > 1) {
+      for (let i = parts.length - 1; i >= 0; i--) {
+        try {
+          const seg = parts[i];
+          if (seg.includes('__auditforge') || seg.includes('__af_')) continue;
+          const el = targetDoc.querySelector(seg);
+          if (el && (!isExtensionElement || !isExtensionElement(el))) return el;
+        } catch (_) {}
+      }
+    }
+
+    // 6. HTML snippet matching fallback
+    if (meta && meta.html) {
+      try {
+        const hrefMatch = meta.html.match(/href=["']([^"']+)["']/i);
+        if (hrefMatch) {
+          const hrefVal = hrefMatch[1].split(/[?#]/)[0];
+          if (hrefVal) {
+            const matchedLink = Array.from(targetDoc.querySelectorAll('a')).find(a => (!isExtensionElement || !isExtensionElement(a)) && (a.getAttribute('href') || '').includes(hrefVal));
+            if (matchedLink) return matchedLink;
+          }
+        }
+        const tagMatch = meta.html.match(/^<([a-z0-9-]+)/i);
+        if (tagMatch) {
+          const tag = tagMatch[1];
+          const candidates = Array.from(targetDoc.querySelectorAll(tag));
+          const snippet = meta.html.slice(0, 45);
+          const matched = candidates.find((c) => (!isExtensionElement || !isExtensionElement(c)) && c.outerHTML && c.outerHTML.includes(snippet));
+          if (matched) return matched;
+        }
+      } catch (_) {}
+    }
+
+    // 7. Match by text content in interactive elements
+    if (meta && (meta.text || meta.textA || meta.target)) {
+      const queryText = (meta.text || meta.textA || '').trim().toLowerCase();
+      if (queryText) {
+        const interactives = Array.from(targetDoc.querySelectorAll('button, a, input, select, textarea, [role="button"], [role="link"], h1, h2, h3, h4, img'));
+        const matched = interactives.find((el) => (!isExtensionElement || !isExtensionElement(el)) && ((el.innerText || el.textContent || '')).trim().toLowerCase().includes(queryText));
+        if (matched) return matched;
+      }
+    }
+
+    return null;
+  }
+
+const POPULAR_MOBILE_DEVICES = {
+  'iphone-16-pro': { id: 'iphone-16-pro', name: 'iPhone 16 / 15 Pro', width: 393, height: 852, dpr: 3 },
+  'iphone-se': { id: 'iphone-se', name: 'iPhone SE (Compact)', width: 375, height: 667, dpr: 2 },
+  'galaxy-s24': { id: 'galaxy-s24', name: 'Samsung Galaxy S24', width: 360, height: 780, dpr: 3 },
+  'pixel-8': { id: 'pixel-8', name: 'Google Pixel 8', width: 412, height: 915, dpr: 2.6 },
+  'iphone-16-max': { id: 'iphone-16-max', name: 'iPhone 16 Pro Max', width: 430, height: 932, dpr: 3 },
+};
+
+function evaluateMobileResponsiveLayout(activeDeviceId = 'iphone-16-pro', options = {}) {
+  const doc = options.rootDoc || document;
+  const win = doc.defaultView || (doc.ownerDocument && doc.ownerDocument.defaultView) || window;
+  const activeDeviceConfig = POPULAR_MOBILE_DEVICES[activeDeviceId] || POPULAR_MOBILE_DEVICES['iphone-16-pro'];
+  const isLandscape = Boolean(options.landscape || options.isLandscape);
+  const activeDevice = {
+    ...activeDeviceConfig,
+    width: isLandscape ? activeDeviceConfig.height : activeDeviceConfig.width,
+    height: isLandscape ? activeDeviceConfig.width : activeDeviceConfig.height,
+    isLandscape,
+  };
+  const allDevices = Object.values(POPULAR_MOBILE_DEVICES);
+
+  const issues = [];
+  const issuesByDevice = {};
+  for (const dev of allDevices) {
+    issuesByDevice[dev.id] = [];
+  }
+
+  // Detect if document is rendered at or near mobile viewport width (e.g. inside mobile simulator iframe)
+  const isDocRenderedAtMobileWidth = win.innerWidth <= (activeDevice.width + 50) || (doc !== document && doc.body);
+
+  // Helper to test if element is visible
+  function isElementVisible(el) {
+    if (!el || typeof el.getBoundingClientRect !== 'function') return false;
+    if (typeof isExtensionElement === 'function' && isExtensionElement(el)) return false;
+    if (el.id && (el.id.includes('__auditforge') || el.id.includes('__af_'))) return false;
+
+    // Check basic style visibility
+    try {
+      const elWin = el.ownerDocument?.defaultView || win;
+      const style = elWin.getComputedStyle(el);
+      if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0' || style.visibility === 'collapse') {
+        return false;
+      }
+      if (style.pointerEvents === 'none' && !el.matches('img, svg, p, span, h1, h2, h3, h4, h5, h6')) {
+        return false;
+      }
+      if (el.getAttribute('aria-hidden') === 'true' || el.closest('[aria-hidden="true"], [hidden]')) {
+        return false;
+      }
+    } catch (_) {}
+
+    const rect = el.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  }
+
+  // 1. Viewport Meta Configuration Check
+  let viewportMetaIssues = [];
+  const viewportMeta = (doc.head || doc).querySelector?.('meta[name="viewport"]') || document.querySelector('meta[name="viewport"]');
+  if (!viewportMeta) {
+    const issue = {
+      id: 'mobile-viewport-missing',
+      type: 'viewport-meta',
+      severity: 'critical',
+      wcagRule: 'WCAG 2.2 AA 1.4.10 Reflow / 1.4.4',
+      title: 'Missing Mobile Viewport Meta Tag',
+      selector: 'head',
+      html: '<head> ... </head>',
+      failureSummary: 'Page lacks a <meta name="viewport"> tag. Mobile browsers will render a 980px desktop view scaled down, causing tiny unreadable text, broken responsive steps, and severe horizontal clipping.',
+      remediationCode: '<meta name="viewport" content="width=device-width, initial-scale=1.0">',
+      device: 'All Mobile Devices',
+      deviceId: 'all',
+    };
+    issues.push(issue);
+    viewportMetaIssues.push(issue);
+    for (const dev of allDevices) issuesByDevice[dev.id].push(issue);
+  } else {
+    const content = (viewportMeta.getAttribute('content') || '').toLowerCase();
+    if (content.includes('user-scalable=no') || content.includes('user-scalable=0') || content.includes('maximum-scale=1.0') || content.includes('maximum-scale=1,')) {
+      const issue = {
+        id: 'mobile-viewport-zoom-locked',
+        type: 'viewport-meta',
+        severity: 'serious',
+        wcagRule: 'WCAG 2.2 AA 1.4.4 Resize Text',
+        title: 'Mobile Pinch-to-Zoom Disabled (user-scalable=no)',
+        selector: 'meta[name="viewport"]',
+        html: viewportMeta.outerHTML.slice(0, 300),
+        failureSummary: 'Viewport restricts pinch-to-zoom (user-scalable=no or maximum-scale=1). This violates WCAG 1.4.4 by preventing users with low vision or motor impairments from zooming into content.',
+        remediationCode: '<!-- Enable mobile zooming and scale up to 500% (WCAG 1.4.4) -->\n<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">',
+        device: 'All Mobile Devices',
+        deviceId: 'all',
+      };
+      issues.push(issue);
+      viewportMetaIssues.push(issue);
+      for (const dev of allDevices) issuesByDevice[dev.id].push(issue);
+    }
+    if (!content.includes('width=device-width')) {
+      const issue = {
+        id: 'mobile-viewport-no-width',
+        type: 'viewport-meta',
+        severity: 'moderate',
+        wcagRule: 'WCAG 2.2 AA 1.4.10 Reflow',
+        title: 'Viewport Missing width=device-width',
+        selector: 'meta[name="viewport"]',
+        html: viewportMeta.outerHTML.slice(0, 300),
+        failureSummary: 'Viewport tag does not declare width=device-width, leading to inconsistent initial responsive sizing across mobile screen widths.',
+        remediationCode: '<meta name="viewport" content="width=device-width, initial-scale=1.0">',
+        device: 'All Mobile Devices',
+        deviceId: 'all',
+      };
+      issues.push(issue);
+      viewportMetaIssues.push(issue);
+      for (const dev of allDevices) issuesByDevice[dev.id].push(issue);
+    }
+  }
+
+  // 2. Horizontal Overflow Check (Content Too Wide)
+  const fixedWidthRules = [];
+  try {
+    const sheets = doc.styleSheets || document.styleSheets;
+    for (const sheet of sheets) {
+      try {
+        for (const rule of sheet.cssRules || []) {
+          // If this rule is inside a desktop-only media query (e.g. min-width: 768px, 48em, 40rem),
+          // it does not apply on mobile screens, so skip it to avoid false alarms!
+          if (rule.parentRule && rule.parentRule.type === CSSRule.MEDIA_RULE) {
+            const mediaCondition = (rule.parentRule.conditionText || rule.parentRule.media?.mediaText || '').toLowerCase();
+            let minWidthPx = 0;
+            const pxMatch = mediaCondition.match(/min-width:\s*([\d.]+)px/);
+            if (pxMatch) minWidthPx = parseFloat(pxMatch[1]);
+            const emMatch = mediaCondition.match(/min-width:\s*([\d.]+)(?:em|rem)/);
+            if (emMatch) minWidthPx = parseFloat(emMatch[1]) * 16;
+            if (minWidthPx > 430) {
+              continue; // Desktop media rule, skip!
+            }
+          }
+          if (rule.style && rule.selectorText) {
+            const w = rule.style.width;
+            const mw = rule.style.minWidth;
+            let pxVal = 0;
+            if (w && w.endsWith('px')) pxVal = Math.max(pxVal, parseFloat(w));
+            if (mw && mw.endsWith('px')) pxVal = Math.max(pxVal, parseFloat(mw));
+            if (pxVal > 0) {
+              fixedWidthRules.push({ selector: rule.selectorText, width: pxVal });
+            }
+          }
+        }
+      } catch (_) {}
+    }
+  } catch (_) {}
+
+  const candidateElements = Array.from((doc.body || doc).querySelectorAll('*')).filter(el => {
+    if (typeof isExtensionElement === 'function' && isExtensionElement(el)) return false;
+    if (['script', 'style', 'noscript', 'template', 'defs', 'clippath'].includes(el.tagName.toLowerCase())) return false;
+    return isElementVisible(el);
+  });
+
+  const reportedOverflowSelectors = new Set();
+
+  for (const dev of allDevices) {
+    const devWidth = dev.width;
+
+    for (const el of candidateElements) {
+      const sel = typeof getUniqueSelector === 'function' ? getUniqueSelector(el) : el.tagName.toLowerCase();
+      if (reportedOverflowSelectors.has(`${dev.id}:${sel}`)) continue;
+
+      let style;
+      try { style = win.getComputedStyle(el); } catch (_) { continue; }
+
+      // Check: Fixed pixel min-width, width, or rigid unconstrained element exceeding device width
+      let isFixedTooWide = false;
+      let specifiedWidth = 0;
+
+      // 0. Skip elements inside intentional accessible horizontal scrolling containers (WCAG 1.4.10)
+      let isInsideHScroll = false;
+      let p = el.parentElement;
+      while (p && p !== (doc.body || document.body) && p !== (doc.documentElement || document.documentElement)) {
+        try {
+          const cs = win.getComputedStyle(p);
+          if (cs.overflowX === 'auto' || cs.overflowX === 'scroll') {
+            isInsideHScroll = true;
+            break;
+          }
+        } catch (_) {}
+        p = p.parentElement;
+      }
+      if (isInsideHScroll) continue;
+
+      const r = el.getBoundingClientRect();
+
+      // If document is rendered at mobile viewport width (e.g. in the simulator iframe):
+      // The browser's layout engine has already computed true responsive widths, flex-wrap, and media queries!
+      if (isDocRenderedAtMobileWidth) {
+        // If element and its scrollWidth fit cleanly within device viewport, it DOES NOT overflow!
+        if (r.width <= devWidth + 6 && el.scrollWidth <= el.clientWidth + 6) {
+          continue;
+        }
+
+        // Real overflow detected in rendered DOM:
+        if (r.width > devWidth + 6 || (el.scrollWidth > el.clientWidth + 6 && el.scrollWidth > devWidth + 6)) {
+          isFixedTooWide = true;
+          specifiedWidth = Math.round(Math.max(r.width, el.scrollWidth));
+        }
+      } else {
+        // Fallback for static desktop scan:
+        // Skip elements that fluidly adapt via max-width: 100% or width: 100%
+        const hasFluidMaxWidth = style.maxWidth === '100%' || style.maxWidth === '100vw' || style.width === '100%' || style.width === '100vw';
+        if (hasFluidMaxWidth && el.scrollWidth <= devWidth + 6) continue;
+
+        const inlineWidth = el.style.width || el.style.minWidth;
+        const attrWidth = el.getAttribute('width');
+        const computedMinWidth = parseFloat(style.minWidth) || 0;
+        const computedWidth = parseFloat(style.width) || 0;
+        const isRigidElement = ['table', 'pre', 'svg', 'canvas', 'img', 'video', 'iframe'].includes(el.tagName.toLowerCase());
+
+        // 1. Min-width in computed style
+        if (computedMinWidth > devWidth + 2) {
+          isFixedTooWide = true;
+          specifiedWidth = Math.round(computedMinWidth);
+        }
+        // 2. Inline style width in px
+        else if (inlineWidth && inlineWidth.endsWith('px') && parseFloat(inlineWidth) > devWidth + 2 && !hasFluidMaxWidth) {
+          isFixedTooWide = true;
+          specifiedWidth = Math.round(parseFloat(inlineWidth));
+        }
+        // 3. Matched CSS rules with fixed px width (only if no responsive max-width)
+        else if (!hasFluidMaxWidth) {
+          for (const { selector, width } of fixedWidthRules) {
+            if (width > devWidth + 2) {
+              try {
+                if (el.matches(selector)) {
+                  if (style.maxWidth !== '100%' && style.maxWidth !== '100vw') {
+                    isFixedTooWide = true;
+                    specifiedWidth = Math.max(specifiedWidth, Math.round(width));
+                  }
+                }
+              } catch (_) {}
+            }
+          }
+        }
+
+        // 4. HTML width attribute on media / table / iframe
+        if (!isFixedTooWide && attrWidth && !attrWidth.includes('%') && !hasFluidMaxWidth) {
+          const num = parseFloat(attrWidth);
+          if (num > devWidth + 2) {
+            isFixedTooWide = true;
+            specifiedWidth = Math.round(num);
+          }
+        }
+
+        // 5. Rigid elements without fluid max-width: 100%
+        if (!isFixedTooWide && isRigidElement && (computedWidth > devWidth + 2 || el.scrollWidth > devWidth + 4)) {
+          if (style.maxWidth !== '100%' && style.width !== '100%' && style.overflowX !== 'auto' && style.overflowX !== 'scroll') {
+            const hasFixedWidth = (inlineWidth && inlineWidth.endsWith('px')) || (attrWidth && !attrWidth.includes('%')) || computedMinWidth > devWidth;
+            if (hasFixedWidth) {
+              isFixedTooWide = true;
+              specifiedWidth = Math.round(Math.max(computedWidth, el.scrollWidth));
+            }
+          }
+        }
+
+        // 6. whiteSpace: nowrap causing scrollWidth to overflow
+        if (!isFixedTooWide && style.whiteSpace === 'nowrap' && el.scrollWidth > devWidth + 4) {
+          if (style.overflowX !== 'auto' && style.overflowX !== 'scroll' && !el.closest('[style*="overflow"]')) {
+            if (computedMinWidth > devWidth || (inlineWidth && parseFloat(inlineWidth) > devWidth)) {
+              isFixedTooWide = true;
+              specifiedWidth = Math.round(el.scrollWidth);
+            }
+          }
+        }
+
+        // 7. Uncontained horizontal scroll overflow
+        if (!isFixedTooWide && el.scrollWidth > el.clientWidth + 6 && el.scrollWidth > devWidth + 6 && style.overflowX !== 'auto' && style.overflowX !== 'scroll') {
+          if (computedMinWidth > devWidth || (inlineWidth && parseFloat(inlineWidth) > devWidth)) {
+            isFixedTooWide = true;
+            specifiedWidth = Math.round(el.scrollWidth);
+          }
+        }
+      }
+
+      if (isFixedTooWide && specifiedWidth > devWidth) {
+        reportedOverflowSelectors.add(`${dev.id}:${sel}`);
+        const overflowPx = specifiedWidth - devWidth;
+        const rect = {
+          top: Math.round(r.top + win.scrollY),
+          left: Math.round(r.left + win.scrollX),
+          width: specifiedWidth,
+          height: Math.round(r.height),
+        };
+
+        const overflowIssue = {
+          id: `mobile-overflow-${dev.id}`,
+          type: 'overflow',
+          severity: overflowPx > 40 ? 'serious' : 'moderate',
+          wcagRule: 'WCAG 2.2 AA 1.4.10 Reflow',
+          title: `Content Too Wide on ${dev.name}`,
+          selector: sel,
+          html: (el.outerHTML || '').slice(0, 300),
+          textA: (el.innerText || el.textContent || '').trim().slice(0, 80),
+          __af_elA: el,
+          rect,
+          elementWidth: specifiedWidth,
+          viewportWidth: devWidth,
+          overflowPixels: overflowPx,
+          device: dev.name,
+          deviceId: dev.id,
+          failureSummary: `Element width (${specifiedWidth}px) exceeds the ${dev.name} viewport width (${devWidth}px) by ${overflowPx}px. This forces horizontal scrolling and causes text or controls to be clipped on mobile.`,
+          remediationCode: `/* Constrain width to mobile viewport and enable fluid scaling (WCAG 1.4.10) */\n${sel} {\n  max-width: 100% !important;\n  box-sizing: border-box !important;\n  width: auto !important;\n  overflow-x: auto; /* Adds touch scrollbar if content cannot wrap */\n}`,
+        };
+
+        issues.push(overflowIssue);
+        issuesByDevice[dev.id].push(overflowIssue);
+      }
+    }
+  }
+
+  // 3. Overlapping Elements Check (Interactive Controls & Text Collisions)
+  const interactiveAndTextElements = candidateElements.filter(el => {
+    const tag = el.tagName.toLowerCase();
+    // Exclude structural containers, cards, sections, and lists
+    if (['div', 'section', 'article', 'main', 'aside', 'header', 'footer', 'form', 'nav', 'ul', 'ol', 'li'].includes(tag)) {
+      return false;
+    }
+    // Exclude status badges, notification counters, pills, dots, tags, and small decorative indicators
+    const cls = typeof el.className === 'string' ? el.className.toLowerCase() : '';
+    if (cls.includes('badge') || cls.includes('counter') || cls.includes('pill') || cls.includes('indicator') || cls.includes('dot') || cls.includes('tag')) {
+      return false;
+    }
+    // Exclude closed/collapsed modals or dropdown menus
+    if (el.closest('.modal:not(.show), .dropdown-menu:not(.show), .drawer:not(.open), [aria-hidden="true"], [hidden]')) {
+      return false;
+    }
+    if (['button', 'input', 'select', 'textarea'].includes(tag)) return true;
+    if (tag === 'a' && el.hasAttribute('href')) return true;
+    if (el.getAttribute('role') === 'button' || el.getAttribute('role') === 'link') return true;
+    if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tag)) return true;
+    if (el.classList.contains('btn') || el.classList.contains('button')) return true;
+    return false;
+  }).slice(0, 80); // Capped for responsive speed
+
+  const reportedOverlapPairs = new Set();
+
+  for (let i = 0; i < interactiveAndTextElements.length; i++) {
+    const elA = interactiveAndTextElements[i];
+    const rA = elA.getBoundingClientRect();
+    if (rA.width <= 0 || rA.height <= 0) continue;
+
+    for (let j = i + 1; j < interactiveAndTextElements.length; j++) {
+      const elB = interactiveAndTextElements[j];
+      if (elA.contains(elB) || elB.contains(elA)) continue;
+
+      // Skip if both elements belong to the same parent button, link, or card control
+      if (elA.closest('a, button, [role="button"]') && elA.closest('a, button, [role="button"]') === elB.closest('a, button, [role="button"]')) continue;
+
+      // Skip elements grouped in a button-group or segmented control with intentional touching borders
+      const btnGroupA = elA.closest('.btn-group, [role="group"]');
+      const btnGroupB = elB.closest('.btn-group, [role="group"]');
+      if (btnGroupA && btnGroupA === btnGroupB) continue;
+
+      // Skip floating labels over inputs (Material Design / Bootstrap floating labels)
+      if ((elA.tagName === 'LABEL' && elA.htmlFor === elB.id) || (elB.tagName === 'LABEL' && elB.htmlFor === elA.id)) continue;
+      if (elA.closest('.form-floating, [class*="floating-label" i]') && elA.closest('.form-floating, [class*="floating-label" i]') === elB.closest('.form-floating, [class*="floating-label" i]')) continue;
+
+      // Skip card link overlays (stretched links covering a card)
+      const sA = win.getComputedStyle(elA);
+      const sB = win.getComputedStyle(elB);
+      if (sA.position === 'absolute' && elA.tagName === 'A' && elB.parentElement === elA.parentElement) continue;
+      if (sB.position === 'absolute' && elB.tagName === 'A' && elA.parentElement === elB.parentElement) continue;
+
+      // Skip elements in different steps of a multi-step flow
+      const stepA = elA.closest('.step, [class*="step-"], [id*="step-"]');
+      const stepB = elB.closest('.step, [class*="step-"], [id*="step-"]');
+      if (stepA && stepB && stepA !== stepB) continue;
+
+      // Skip fixed/sticky elements against scrolling static page flow (e.g. sticky header over scrolled page)
+      const isFixedOrStickyA = sA.position === 'fixed' || sA.position === 'sticky';
+      const isFixedOrStickyB = sB.position === 'fixed' || sB.position === 'sticky';
+      if ((isFixedOrStickyA && !isFixedOrStickyB) || (!isFixedOrStickyA && isFixedOrStickyB)) continue;
+
+      const rB = elB.getBoundingClientRect();
+      if (rB.width <= 0 || rB.height <= 0) continue;
+
+      // Check visibility & opacity
+      try {
+        if (sA.visibility !== 'visible' || sB.visibility !== 'visible') continue;
+        if (parseFloat(sA.opacity) < 0.2 || parseFloat(sB.opacity) < 0.2) continue;
+        if (sA.pointerEvents === 'none' || sB.pointerEvents === 'none') continue;
+      } catch (_) {}
+
+      // Check geometric rectangle intersection
+      const xOverlap = Math.max(0, Math.min(rA.right, rB.right) - Math.max(rA.left, rB.left));
+      const yOverlap = Math.max(0, Math.min(rA.bottom, rB.bottom) - Math.max(rA.top, rB.top));
+      const overlapArea = xOverlap * yOverlap;
+
+      const areaA = rA.width * rA.height;
+      const areaB = rB.width * rB.height;
+      const minArea = Math.min(areaA, areaB);
+      const overlapRatio = minArea > 0 ? (overlapArea / minArea) : 0;
+
+      // Meaningful collision threshold:
+      // Must have at least 250 sq px overlap, at least 16px in both dimensions,
+      // and cover at least 25% of the smaller element's bounding rect
+      if (overlapArea >= 250 && xOverlap >= 16 && yOverlap >= 16 && overlapRatio >= 0.25) {
+        const selA = typeof getUniqueSelector === 'function' ? getUniqueSelector(elA) : elA.tagName.toLowerCase();
+        const selB = typeof getUniqueSelector === 'function' ? getUniqueSelector(elB) : elB.tagName.toLowerCase();
+        const pairKey = [selA, selB].sort().join(' <-> ');
+        if (reportedOverlapPairs.has(pairKey)) continue;
+        reportedOverlapPairs.add(pairKey);
+
+        const isInteractiveA = ['button', 'input', 'select', 'textarea', 'a'].includes(elA.tagName.toLowerCase()) || elA.getAttribute('role') === 'button';
+        const isInteractiveB = ['button', 'input', 'select', 'textarea', 'a'].includes(elB.tagName.toLowerCase()) || elB.getAttribute('role') === 'button';
+
+        const severity = (isInteractiveA && isInteractiveB) ? 'critical' : 'serious';
+        const overlapIssue = {
+          id: 'mobile-overlapping-elements',
+          type: 'overlap',
+          severity,
+          wcagRule: 'WCAG 2.2 AA 1.4.10 Reflow / 2.1.1 Keyboard',
+          title: (isInteractiveA && isInteractiveB) ? 'Overlapping Interactive Controls' : 'Overlapping Elements Collision',
+          selector: selA,
+          selectorB: selB,
+          html: elA.outerHTML.slice(0, 200),
+          htmlB: elB.outerHTML.slice(0, 200),
+          textA: (elA.innerText || elA.textContent || '').trim().slice(0, 80),
+          textB: (elB.innerText || elB.textContent || '').trim().slice(0, 80),
+          __af_elA: elA,
+          __af_elB: elB,
+          rect: {
+            top: Math.round(rA.top + win.scrollY),
+            left: Math.round(rA.left + win.scrollX),
+            width: Math.round(rA.width),
+            height: Math.round(rA.height),
+          },
+          rectB: {
+            top: Math.round(rB.top + win.scrollY),
+            left: Math.round(rB.left + win.scrollX),
+            width: Math.round(rB.width),
+            height: Math.round(rB.height),
+          },
+          overlapArea: Math.round(overlapArea),
+          device: 'All Mobile Devices',
+          deviceId: 'all',
+          failureSummary: `Elements visually collide and overlap by ${Math.round(overlapArea)}px² (${Math.round(xOverlap)}×${Math.round(yOverlap)}px). ${isInteractiveA || isInteractiveB ? 'An interactive control is obstructed, preventing touchscreen taps or obscuring crucial text on mobile.' : 'Content blocks overlap, rendering text illegible.'}`,
+          remediationCode: `/* Separate overlapping elements and establish clear flow / z-index */\n${selA} {\n  position: relative;\n  z-index: 10;\n  margin-bottom: 16px;\n}\n${selB} {\n  position: relative;\n  z-index: 5;\n}`,
+        };
+
+        issues.push(overlapIssue);
+        for (const dev of allDevices) issuesByDevice[dev.id].push(overlapIssue);
+      }
+    }
+  }
+
+  // 4. Disjointed Page Steps & Multi-Step Flow Breakages Check
+  const stepContainers = Array.from((doc.body || doc).querySelectorAll(
+    '[class*="wizard" i], [class*="stepper" i], ' +
+    'ol[class*="steps" i], ul[class*="steps" i], nav[aria-label*="step" i], ' +
+    '.steps-wrapper, .form-steps, .checkout-steps, .wizard-bar'
+  )).filter(el => {
+    if (typeof isExtensionElement === 'function' && isExtensionElement(el)) return false;
+    if (['body', 'html', 'main'].includes(el.tagName.toLowerCase())) return false;
+    // Exclude tabs and breadcrumbs from disjointed-steps checks to prevent false alarms
+    if (el.getAttribute('role') === 'tablist' || el.closest('[role="tablist"]')) return false;
+    if (el.matches('nav[aria-label*="breadcrumb" i], [class*="bread" i]')) return false;
+    return isElementVisible(el);
+  });
+
+  const reportedStepContainers = new Set();
+
+  for (const container of stepContainers) {
+    const sel = typeof getUniqueSelector === 'function' ? getUniqueSelector(container) : container.tagName.toLowerCase();
+    if (reportedStepContainers.has(sel)) continue;
+
+    // Find step children: items with class step, li children, or child elements
+    let stepItems = Array.from(container.children).filter(child => {
+      if (child.tagName.toLowerCase() === 'script' || child.tagName.toLowerCase() === 'style') return false;
+      return isElementVisible(child);
+    });
+
+    if (stepItems.length === 1 && (stepItems[0].tagName.toLowerCase() === 'ul' || stepItems[0].tagName.toLowerCase() === 'ol')) {
+      stepItems = Array.from(stepItems[0].children).filter(isElementVisible);
+    }
+
+    // Must have at least 2 distinct steps to be a multi-step flow
+    if (stepItems.length < 2) continue;
+
+    reportedStepContainers.add(sel);
+
+    // Examine step item geometries at mobile scale
+    const itemRects = stepItems.map(item => item.getBoundingClientRect());
+    const topPositions = itemRects.map(r => Math.round(r.top));
+    const uniqueTops = Array.from(new Set(topPositions));
+
+    // Check A: Awkward Multi-Line Staggering / Wrapping
+    // In horizontal steppers, if top positions differ significantly, steps wrapped onto multiple lines.
+    const isVerticalStack = uniqueTops.length === stepItems.length;
+    // Check if it's a regular balanced grid (e.g. 2x2, 3x2)
+    const countsPerRow = uniqueTops.map(t => topPositions.filter(pos => pos === t).length);
+    const isUniformGrid = countsPerRow.length > 1 && countsPerRow.every(c => c === countsPerRow[0]);
+    const isMultiLine = !isVerticalStack && !isUniformGrid && uniqueTops.length > 1 && uniqueTops.length < stepItems.length;
+
+    // Check B: Step Badge / Number Collision with Labels or Adjacent Steps
+    let hasBadgeCollision = false;
+    let badgeCollisionDetails = '';
+
+    for (let s = 0; s < stepItems.length; s++) {
+      const item = stepItems[s];
+      const badge = item.querySelector('[class*="number" i], [class*="badge" i], [class*="icon" i], [class*="bullet" i], span:first-child');
+      const label = item.querySelector('[class*="title" i], [class*="label" i], [class*="name" i], [class*="text" i], p, span:last-child');
+      if (badge && label && badge !== label) {
+        const rBadge = badge.getBoundingClientRect();
+        const rLabel = label.getBoundingClientRect();
+        if (rBadge.width > 0 && rLabel.width > 0) {
+          const xOver = Math.max(0, Math.min(rBadge.right, rLabel.right) - Math.max(rBadge.left, rLabel.left));
+          const yOver = Math.max(0, Math.min(rBadge.bottom, rLabel.bottom) - Math.max(rBadge.top, rLabel.top));
+          if (xOver > 4 && yOver > 4) {
+            hasBadgeCollision = true;
+            badgeCollisionDetails = `Step #${s + 1} number badge collides with step label text.`;
+            break;
+          }
+        }
+      }
+    }
+
+    // Check C: Detached / Misaligned Connector Lines
+    let hasDetachedConnector = false;
+    const connectors = container.querySelectorAll('[class*="line" i], [class*="connector" i], [class*="bar" i], [class*="divider" i]');
+    for (const conn of connectors) {
+      const connStyle = win.getComputedStyle(conn);
+      if (connStyle.position === 'absolute') {
+        const connRect = conn.getBoundingClientRect();
+        if (connRect.width > activeDevice.width || connRect.left < 0) {
+          hasDetachedConnector = true;
+          break;
+        }
+      }
+    }
+
+    // Check D: Stepper container width overflow
+    const containerRect = container.getBoundingClientRect();
+    const isStepperOverflowing = containerRect.width > activeDevice.width + 6 || container.scrollWidth > activeDevice.width + 6;
+
+    // Disjointed steps flagged when wizard breaks across uneven lines or has collisions
+    if (isMultiLine || hasBadgeCollision || hasDetachedConnector || isStepperOverflowing) {
+      let failureSummary = '';
+      if (hasBadgeCollision) {
+        failureSummary = `Multi-step flow (${stepItems.length} steps) has badge collisions: ${badgeCollisionDetails}. On small viewports, steps collide with numbering badges, making the current step unreadable.`;
+      } else if (hasDetachedConnector) {
+        failureSummary = `Multi-step flow connector line is disjointed or misaligned, detaching from steps on mobile viewports. The connector bars drift away from the step sequence.`;
+      } else if (isStepperOverflowing) {
+        failureSummary = `Multi-step indicator (${stepItems.length} steps) overflows the ${activeDevice.name} screen width (${Math.round(containerRect.width)}px vs ${activeDevice.width}px), causing trailing steps to be truncated off-screen so users cannot see upcoming process steps.`;
+      } else {
+        failureSummary = `Multi-step flow breaks into ${uniqueTops.length} disjointed horizontal rows on mobile screens. When horizontal steppers wrap unevenly, the sequential order (WCAG 1.3.2) is visually fragmented, causing severe disorientation for screen magnifier and mobile users.`;
+      }
+
+      const stepIssue = {
+        id: 'mobile-disjointed-steps',
+        type: 'disjointed-steps',
+        severity: (hasBadgeCollision || isStepperOverflowing) ? 'serious' : 'moderate',
+        wcagRule: 'WCAG 2.2 AA 1.3.2 Meaningful Sequence / 1.4.10 Reflow',
+        title: 'Disjointed Multi-Step Flow or Wizard Stepper',
+        selector: sel,
+        html: container.outerHTML.slice(0, 300),
+        textA: (container.innerText || container.textContent || '').trim().slice(0, 80),
+        __af_elA: container,
+        stepCount: stepItems.length,
+        rect: {
+          top: Math.round(containerRect.top + win.scrollY),
+          left: Math.round(containerRect.left + win.scrollX),
+          width: Math.round(containerRect.width),
+          height: Math.round(containerRect.height),
+        },
+        device: activeDevice.name,
+        deviceId: activeDevice.id,
+        failureSummary,
+        remediationCode: `/* Responsive Mobile Stepper: Stack vertically or enable horizontal scroll snap (WCAG 1.3.2 / 1.4.10) */\n@media (max-width: 600px) {\n  ${sel} {\n    display: flex !important;\n    flex-direction: column !important;\n    gap: 12px !important;\n    width: 100% !important;\n  }\n  /* Alternatively, enable smooth touch swipeable step track */\n  /* ${sel} { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; } */\n}`,
+      };
+
+      issues.push(stepIssue);
+      for (const dev of allDevices) issuesByDevice[dev.id].push(stepIssue);
+    }
+  }
+
+  // 5. Sticky & Fixed Viewport Occlusions Check
+  const fixedElements = candidateElements.filter(el => {
+    try {
+      const pos = win.getComputedStyle(el).position;
+      return pos === 'fixed' || pos === 'sticky';
+    } catch (_) { return false; }
+  });
+
+  for (const el of fixedElements) {
+    const r = el.getBoundingClientRect();
+    const h = Math.round(r.height);
+    // If sticky banner/bar consumes > 30% of active mobile screen height
+    if (h > activeDevice.height * 0.3) {
+      const sel = typeof getUniqueSelector === 'function' ? getUniqueSelector(el) : el.tagName.toLowerCase();
+      const stickyIssue = {
+        id: 'mobile-sticky-occlusion',
+        type: 'sticky-occlusion',
+        severity: 'serious',
+        wcagRule: 'WCAG 2.2 AA 1.4.10 Reflow',
+        title: 'Sticky Element Consumes Excessive Screen Height',
+        selector: sel,
+        html: el.outerHTML.slice(0, 250),
+        textA: (el.innerText || el.textContent || '').trim().slice(0, 80),
+        __af_elA: el,
+        rect: {
+          top: Math.round(r.top + win.scrollY),
+          left: Math.round(r.left + win.scrollX),
+          width: Math.round(r.width),
+          height: h,
+        },
+        device: activeDevice.name,
+        deviceId: activeDevice.id,
+        failureSummary: `Fixed/sticky element height (${h}px) consumes ${(h / activeDevice.height * 100).toFixed(0)}% of the ${activeDevice.name} screen, obstructing viewable page content and keyboard interactions.`,
+        remediationCode: `/* Reduce sticky header height on mobile viewports */\n@media (max-width: 600px) {\n  ${sel} {\n    max-height: 70px !important;\n    position: static !important; /* Allow header to scroll with page on small screens */\n  }\n}`,
+      };
+      issues.push(stickyIssue);
+      for (const dev of allDevices) issuesByDevice[dev.id].push(stickyIssue);
+    }
+  }
+
+  // Calculate Mobile Health Score (0 - 100)
+  let scoreDeduction = 0;
+  const overlapsCount = issues.filter(i => i.type === 'overlap').length;
+  const overflowsCount = issues.filter(i => i.type === 'overflow').length;
+  const stepsCount = issues.filter(i => i.type === 'disjointed-steps').length;
+  const viewportCount = issues.filter(i => i.type === 'viewport-meta').length;
+  const stickyCount = issues.filter(i => i.type === 'sticky-occlusion').length;
+
+  if (viewportCount > 0) scoreDeduction += 20;
+  scoreDeduction += Math.min(35, overlapsCount * 12);
+  scoreDeduction += Math.min(30, overflowsCount * 8);
+  scoreDeduction += Math.min(25, stepsCount * 10);
+  scoreDeduction += Math.min(10, stickyCount * 5);
+
+  const mobileScore = Math.max(0, Math.min(100, 100 - scoreDeduction));
+
+  let grade = 'A+';
+  let riskLevel = 'Low';
+  if (mobileScore < 50) { grade = 'F'; riskLevel = 'Severe'; }
+  else if (mobileScore < 65) { grade = 'D'; riskLevel = 'High'; }
+  else if (mobileScore < 75) { grade = 'C'; riskLevel = 'Moderate'; }
+  else if (mobileScore < 88) { grade = 'B'; riskLevel = 'Moderate'; }
+  else if (mobileScore < 95) { grade = 'A'; riskLevel = 'Low'; }
+
+  // Sort issues by severity: critical -> serious -> moderate -> minor
+  const sevOrder = { critical: 1, serious: 2, moderate: 3, minor: 4 };
+  issues.sort((a, b) => (sevOrder[a.severity] || 5) - (sevOrder[b.severity] || 5));
+
+  return {
+    mobileScore,
+    grade,
+    riskLevel,
+    activeDevice,
+    availableDevices: allDevices,
+    summary: {
+      totalIssues: issues.length,
+      overlapsCount,
+      overflowsCount,
+      disjointedStepsCount: stepsCount,
+      touchTargetCount: 0,
+      viewportMetaCount: viewportCount,
+      stickyCount,
+    },
+    issues,
+    issuesByDevice,
+  };
+}
+
+
+/**
+ * In-Page Interactive Mobile Viewport Simulator HUD
+ */
+let mobileSimCleanup = null;
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str).replace(/[&<>"']/g, c => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;',
+  }[c]));
+}
+
+function populateMobileSimulatorIframe(iframe, options = {}) {
+  if (!iframe) return;
+  const targetUrl = options.url || window.location.href;
+  const isMockTest = targetUrl.includes('.test') || targetUrl.startsWith('data:') || targetUrl.startsWith('blob:');
+  const requestedMode = options.mode || window.__af_mobile_sim_mode;
+  const useLive = requestedMode === 'live' || (!requestedMode && !isMockTest && (targetUrl.startsWith('http://') || targetUrl.startsWith('https://')));
+
+  if (useLive) {
+    loadLiveIframe(iframe, targetUrl, options);
+  } else {
+    loadSnapshotIntoIframe(iframe, options);
+  }
+}
+
+/**
+ * Loads the live webpage inside the mobile simulator iframe.
+ * Allows interacting with live JavaScript SPAs, completing multi-step forms (e.g. quotes.annuityready.com),
+ * and receiving native event handling and API calls with authentic mobile responsive layout styling.
+ */
+function loadLiveIframe(iframe, targetUrl, options = {}) {
+  let isLoaded = false;
+  let fallbackTimer = null;
+
+  const onFrameLoad = () => {
+    try {
+      const idoc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (idoc && idoc.body && idoc.location && idoc.location.href !== 'about:blank') {
+        const isErrorPage = idoc.title && (idoc.title.includes('refused to connect') || idoc.title.includes('Error'));
+        if (!isErrorPage) {
+          isLoaded = true;
+          if (fallbackTimer) {
+            clearTimeout(fallbackTimer);
+            fallbackTimer = null;
+          }
+
+          // Apply active vision filter if one was set
+          if (window.__af_active_color_filter && window.__af_active_color_filter !== 'none') {
+            applyVisionFilterToMobileSimulator(window.__af_active_color_filter);
+          }
+
+          // Initialize mobile device touch controls & kinetic drag-to-scroll
+          setupMobileTouchEmulation(iframe, idoc);
+
+          // Inject highlight styles into simulator iframe
+          injectMobileSimulatorHighlightStyles(idoc);
+
+          // Update layout evaluation for the live document in the iframe
+          if (typeof options.onUpdateLayout === 'function') {
+            options.onUpdateLayout(idoc);
+          }
+
+          // Observe DOM changes inside live iframe (e.g. form step progression like clicking 'Let's get started')
+          let debounceMutation = null;
+          const obs = new MutationObserver(() => {
+            if (debounceMutation) clearTimeout(debounceMutation);
+            debounceMutation = setTimeout(() => {
+              if (typeof options.onUpdateLayout === 'function') {
+                options.onUpdateLayout(idoc);
+              }
+            }, 300);
+          });
+          obs.observe(idoc.body, { childList: true, subtree: true, attributes: false });
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('[Mobile Simulator] Live iframe access restricted, falling back to snapshot:', err);
+    }
+
+    if (!isLoaded) {
+      loadSnapshotIntoIframe(iframe, options);
+    }
+  };
+
+  iframe.removeEventListener('load', iframe.__af_live_load_handler);
+  iframe.__af_live_load_handler = onFrameLoad;
+  iframe.addEventListener('load', onFrameLoad);
+
+  // Safety fallback timeout in case live network or frame embedding is blocked
+  fallbackTimer = setTimeout(() => {
+    if (!isLoaded) {
+      console.log('[Mobile Simulator] Live load timeout reached, loading snapshot fallback.');
+      loadSnapshotIntoIframe(iframe, options);
+    }
+  }, 2200);
+
+  try {
+    iframe.removeAttribute('srcdoc');
+    iframe.src = targetUrl;
+  } catch (err) {
+    loadSnapshotIntoIframe(iframe, options);
+  }
+}
+
+/**
+ * Loads a frozen snapshot of the parent DOM into the simulator.
+ * Wires up smart interactive event mirroring so clicks and inputs in the snapshot trigger the parent document.
+ */
+function loadSnapshotIntoIframe(iframe, options = {}) {
+  try {
+    const baseHref = window.location.href.split('#')[0];
+    const headNodes = [
+      `<base href="${escapeHtml(baseHref)}">`,
+      `<meta charset="utf-8">`,
+      `<meta name="viewport" content="width=device-width, initial-scale=1.0">`,
+    ];
+
+    if (document.title) {
+      headNodes.push(`<title>${escapeHtml(document.title)}</title>`);
+    }
+
+    // Copy styles and meta from document.head
+    Array.from(document.head.querySelectorAll('link[rel="stylesheet"], style, meta')).forEach(el => {
+      if (isExtensionElement(el)) return;
+      if (el.id && (el.id.includes('__af_') || el.id.includes('__auditforge'))) return;
+      headNodes.push(el.outerHTML);
+    });
+
+    // Copy readable CSS rules from document.styleSheets that might be dynamically generated
+    for (const sheet of Array.from(document.styleSheets)) {
+      try {
+        if (!sheet.href && sheet.cssRules && sheet.cssRules.length > 0) {
+          const rules = Array.from(sheet.cssRules).map(r => r.cssText).join('\n');
+          if (rules && !rules.includes('__auditforge') && !rules.includes('af-mob-')) {
+            headNodes.push(`<style data-af-cloned="dynamic">${rules}</style>`);
+          }
+        }
+      } catch (_) {}
+    }
+
+    // Simulator helper styles embedded in the iframe
+    headNodes.push(`
+      <style id="__af_sim_embedded_css__">
+        html {
+          width: 100% !important;
+          overflow-x: hidden !important;
+          -webkit-text-size-adjust: 100%;
+        }
+        body {
+          width: 100% !important;
+          margin: 0;
+          overflow-x: hidden !important;
+          -webkit-overflow-scrolling: touch;
+        }
+        .af-mob-highlight-target {
+          outline: 3.5px solid #ef4444 !important;
+          outline-offset: 3px !important;
+          box-shadow: 0 0 25px rgba(239, 68, 68, 0.95), inset 0 0 15px rgba(239, 68, 68, 0.3) !important;
+          transition: all 0.3s ease !important;
+          animation: afMobPulse 1.2s infinite alternate !important;
+        }
+        .af-mob-highlight-secondary {
+          outline: 3.5px solid #f97316 !important;
+          outline-offset: 3px !important;
+          box-shadow: 0 0 25px rgba(249, 115, 22, 0.95), inset 0 0 15px rgba(249, 115, 22, 0.3) !important;
+          transition: all 0.3s ease !important;
+          animation: afMobPulse 1.2s infinite alternate !important;
+        }
+        @keyframes afMobPulse {
+          0% { transform: scale(1); box-shadow: 0 0 15px rgba(239, 68, 68, 0.7); }
+          100% { transform: scale(1.02); box-shadow: 0 0 35px rgba(239, 68, 68, 1); }
+        }
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(100, 116, 139, 0.4); border-radius: 9999px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.7); }
+      </style>
+    `);
+
+    // Clone body and remove all extension elements and scripts to avoid double-execution
+    const bodyClone = document.body.cloneNode(true);
+    const extSelectors = [
+      '[data-auditforge-ext="true"]',
+      '#__auditforge_mobile_sim_root__',
+      '#__auditforge_overlay_root__',
+      '#__auditforge_highlighter_root__',
+      '#__auditforge_voiceover_hud__',
+      '#__auditforge_tab_trail_svg__',
+      '[id*="__auditforge"]',
+      '[id*="__af_"]',
+      '.af-mob-drawer',
+      '.af-mob-chassis',
+      '.af-mob-header',
+      'script'
+    ];
+    bodyClone.querySelectorAll(extSelectors.join(', ')).forEach(el => el.remove());
+
+    const bodyClass = (document.body.className || '').replace(/__af_[^\s]+/g, '').trim();
+    const bodyStyle = document.body.getAttribute('style') || '';
+
+    const docHtml = `<!DOCTYPE html>
+<html lang="${escapeHtml(document.documentElement.lang || 'en')}" class="${escapeHtml(document.documentElement.className || '')}">
+<head>
+${headNodes.join('\n')}
+</head>
+<body class="${escapeHtml(bodyClass)}" style="${escapeHtml(bodyStyle)}">
+${bodyClone.innerHTML}
+</body>
+</html>`;
+
+    // Set up load listener BEFORE assigning srcdoc to ensure no race conditions
+    iframe.addEventListener('load', () => {
+      try {
+        const idoc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (!idoc) return;
+
+        // Apply active vision filter if one was set on the page
+        if (window.__af_active_color_filter && window.__af_active_color_filter !== 'none') {
+          applyVisionFilterToMobileSimulator(window.__af_active_color_filter);
+        }
+
+        // Initialize mobile device touch controls & kinetic drag-to-scroll
+        setupMobileTouchEmulation(iframe, idoc);
+
+        // Inject highlight styles into simulator iframe
+        injectMobileSimulatorHighlightStyles(idoc);
+
+        // Setup intelligent interactive event mirroring to parent page
+        setupSnapshotEventMirroring(idoc, iframe);
+
+        // Update layout evaluation
+        if (typeof options.onUpdateLayout === 'function') {
+          options.onUpdateLayout(idoc);
+        }
+      } catch (_) {}
+    }, { once: true });
+
+    iframe.removeAttribute('src');
+    iframe.srcdoc = docHtml;
+  } catch (err) {
+    console.warn('[Mobile Simulator] Snapshot population warning:', err);
+  }
+}
+
+/**
+ * Wires up interactive event forwarding for snapshot mode.
+ * When a user clicks a button, link, or changes an input inside the snapshot,
+ * the matching element in the live document is focused and triggered, then the snapshot re-syncs.
+ */
+function setupSnapshotEventMirroring(idoc, iframe) {
+  if (!idoc || !idoc.body) return;
+
+  function findMatchingElement(el) {
+    if (!el || el === idoc.body || el === idoc.documentElement) return null;
+
+    // 1. By ID (handle duplicate IDs like in quotes.annuityready.com by checking tagName match first)
+    if (el.id && !el.id.startsWith('__af_')) {
+      const exactMatch = document.querySelector(`${el.tagName.toLowerCase()}#${CSS.escape(el.id)}`) || document.getElementById(el.id);
+      if (exactMatch) return exactMatch;
+    }
+
+    // 2. By data-test / data-testid / data-test-id
+    const testId = el.getAttribute('data-test') || el.getAttribute('data-testid') || el.getAttribute('data-test-id');
+    if (testId) {
+      const match = document.querySelector(`[data-test="${CSS.escape(testId)}"], [data-testid="${CSS.escape(testId)}"], [data-test-id="${CSS.escape(testId)}"]`);
+      if (match) return match;
+    }
+
+    // 3. By name
+    if (el.name) {
+      const match = document.querySelector(`[name="${CSS.escape(el.name)}"]`);
+      if (match) return match;
+    }
+
+    // 4. By button or link text content
+    if (el.tagName === 'BUTTON' || el.tagName === 'A' || el.getAttribute('role') === 'button') {
+      const text = el.innerText?.trim();
+      if (text) {
+        const candidates = Array.from(document.querySelectorAll('button, a, [role="button"]'));
+        const textMatch = candidates.find(c => c.innerText?.trim() === text);
+        if (textMatch) return textMatch;
+      }
+    }
+
+    // 5. By unique CSS selector
+    try {
+      const sel = typeof getUniqueSelector === 'function' ? getUniqueSelector(el) : null;
+      if (sel) {
+        const match = document.querySelector(sel);
+        if (match) return match;
+      }
+    } catch (_) {}
+
+    return null;
+  }
+
+  // Intercept clicks on interactive elements and mirror to live document
+  idoc.addEventListener('click', (e) => {
+    const target = e.target;
+    const clickable = target.closest('button, a, input, select, textarea, label, [role="button"]');
+    if (!clickable) return;
+
+    // Direct link navigation
+    if (clickable.tagName === 'A') {
+      const href = clickable.getAttribute('href');
+      if (href && !href.startsWith('#') && !href.startsWith('javascript:')) {
+        e.preventDefault();
+        window.location.href = clickable.href;
+        return;
+      }
+    }
+
+    const parentEl = findMatchingElement(clickable);
+    if (parentEl) {
+      try {
+        parentEl.focus?.();
+        parentEl.click?.();
+        parentEl.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+      } catch (_) {}
+
+      // Re-sync snapshot DOM shortly after to reflect next step
+      setTimeout(() => {
+        loadSnapshotIntoIframe(iframe);
+      }, 350);
+    }
+  }, true);
+
+  // Intercept form input changes and mirror to live document
+  idoc.addEventListener('input', (e) => {
+    const parentEl = findMatchingElement(e.target);
+    if (parentEl && 'value' in parentEl && 'value' in e.target) {
+      parentEl.value = e.target.value;
+      parentEl.dispatchEvent(new Event('input', { bubbles: true }));
+      parentEl.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }, true);
+}
+
+/**
+ * Full Mobile Device Touch Emulation Engine
+ * Provides authentic smartphone touch-drag kinetic scrolling, momentum physics,
+ * grab-cursor styling, nested container scrolling, wheel support, touch event emulation,
+ * and a translucent mobile fingertip touch indicator.
+ */
+function setupMobileTouchEmulation(iframe, idoc) {
+  if (!idoc || !idoc.body) return;
+
+  // 1. Inject Mobile Touch Styles (smooth kinetic touch cursor & pointer styles)
+  let touchStyle = idoc.getElementById('__af_touch_emulation_css__');
+  if (!touchStyle) {
+    touchStyle = idoc.createElement('style');
+    touchStyle.id = '__af_touch_emulation_css__';
+    touchStyle.textContent = `
+      html, body {
+        cursor: grab !important;
+        overscroll-behavior: contain;
+      }
+      input, textarea, select, button, [contenteditable="true"] {
+        cursor: auto !important;
+        user-select: auto !important;
+        -webkit-user-select: auto !important;
+      }
+      body.af-touch-dragging, body.af-touch-dragging * {
+        cursor: grabbing !important;
+        user-select: none !important;
+        -webkit-user-select: none !important;
+      }
+      /* Sleek translucent mobile touch indicator / puck */
+      #__af_touch_puck__ {
+        position: fixed;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(56, 189, 248, 0.45) 0%, rgba(13, 159, 186, 0.25) 70%, rgba(27, 111, 126, 0.4) 100%);
+        border: 2px solid rgba(56, 189, 248, 0.85);
+        box-shadow: 0 0 14px rgba(56, 189, 248, 0.5), inset 0 0 8px rgba(255, 255, 255, 0.3);
+        pointer-events: none;
+        z-index: 2147483647;
+        transform: translate(-50%, -50%) scale(1);
+        transition: transform 0.1s cubic-bezier(0.2, 0.8, 0.2, 1), background 0.15s ease, opacity 0.2s ease;
+        opacity: 0;
+      }
+      #__af_touch_puck__.active-pressing {
+        transform: translate(-50%, -50%) scale(0.8);
+        background: radial-gradient(circle, rgba(56, 189, 248, 0.75) 0%, rgba(13, 159, 186, 0.5) 70%, rgba(18, 119, 136, 0.7) 100%);
+        border-color: #38bdf8;
+        box-shadow: 0 0 22px rgba(56, 189, 248, 0.8), inset 0 0 10px rgba(255, 255, 255, 0.6);
+      }
+      /* Touch tap ripple wave */
+      .af-touch-ripple {
+        position: fixed;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        border: 2px solid rgba(56, 189, 248, 0.9);
+        background: rgba(56, 189, 248, 0.25);
+        pointer-events: none;
+        z-index: 2147483646;
+        transform: translate(-50%, -50%) scale(1);
+        animation: afTouchRippleAnim 0.45s ease-out forwards;
+      }
+      @keyframes afTouchRippleAnim {
+        0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        100% { transform: translate(-50%, -50%) scale(2.8); opacity: 0; }
+      }
+    `;
+    idoc.head.appendChild(touchStyle);
+  }
+
+  // 2. Touch Puck Element
+  let puck = idoc.getElementById('__af_touch_puck__');
+  if (!puck) {
+    puck = idoc.createElement('div');
+    puck.id = '__af_touch_puck__';
+    idoc.body.appendChild(puck);
+  }
+
+  // 3. Kinetic Drag Scrolling Engine
+  let isDown = false;
+  let startX = 0;
+  let startY = 0;
+  let scrollStartX = 0;
+  let scrollStartY = 0;
+  let hasMoved = false;
+  let lastX = 0;
+  let lastY = 0;
+  let lastTime = 0;
+  let velX = 0;
+  let velY = 0;
+  let momentumAnimId = null;
+  let activeScrollEl = null;
+
+  function stopMomentum() {
+    if (momentumAnimId) {
+      cancelAnimationFrame(momentumAnimId);
+      momentumAnimId = null;
+    }
+  }
+
+  function findScrollTarget(el) {
+    let cur = el;
+    while (cur && cur !== idoc.body && cur !== idoc.documentElement) {
+      try {
+        const style = idoc.defaultView?.getComputedStyle(cur);
+        if (style) {
+          const oy = style.overflowY;
+          const ox = style.overflowX;
+          if ((oy === 'auto' || oy === 'scroll') && cur.scrollHeight > cur.clientHeight + 2) {
+            return cur;
+          }
+          if ((ox === 'auto' || ox === 'scroll') && cur.scrollWidth > cur.clientWidth + 2) {
+            return cur;
+          }
+        }
+      } catch (_) {}
+      cur = cur.parentElement;
+    }
+    return idoc.scrollingElement || idoc.documentElement || idoc.body;
+  }
+
+  function onTouchStart(clientX, clientY, target) {
+    if (window.__af_mobile_touch_mode === false) return;
+    stopMomentum();
+    isDown = true;
+    hasMoved = false;
+    startX = clientX;
+    startY = clientY;
+    lastX = clientX;
+    lastY = clientY;
+    lastTime = performance.now();
+    velX = 0;
+    velY = 0;
+
+    activeScrollEl = findScrollTarget(target);
+    scrollStartX = activeScrollEl.scrollLeft;
+    scrollStartY = activeScrollEl.scrollTop;
+
+    puck.classList.add('active-pressing');
+    puck.style.opacity = '1';
+    puck.style.left = `${clientX}px`;
+    puck.style.top = `${clientY}px`;
+
+    // Trigger subtle touch ripple
+    const ripple = idoc.createElement('div');
+    ripple.className = 'af-touch-ripple';
+    ripple.style.left = `${clientX}px`;
+    ripple.style.top = `${clientY}px`;
+    idoc.body.appendChild(ripple);
+    setTimeout(() => ripple.remove(), 450);
+  }
+
+  function onTouchMove(clientX, clientY) {
+    if (window.__af_mobile_touch_mode === false) {
+      puck.style.opacity = '0';
+      return;
+    }
+    puck.style.opacity = '1';
+    puck.style.left = `${clientX}px`;
+    puck.style.top = `${clientY}px`;
+
+    if (!isDown) return;
+
+    const dx = clientX - startX;
+    const dy = clientY - startY;
+
+    if (!hasMoved && Math.hypot(dx, dy) > 4) {
+      hasMoved = true;
+      idoc.body.classList.add('af-touch-dragging');
+    }
+
+    if (hasMoved && activeScrollEl) {
+      activeScrollEl.scrollLeft = scrollStartX - dx;
+      activeScrollEl.scrollTop = scrollStartY - dy;
+
+      const now = performance.now();
+      const dt = now - lastTime;
+      if (dt > 8) {
+        velX = (clientX - lastX) / dt;
+        velY = (clientY - lastY) / dt;
+        lastX = clientX;
+        lastY = clientY;
+        lastTime = now;
+      }
+    }
+  }
+
+  function onTouchEnd() {
+    if (!isDown) return;
+    isDown = false;
+    puck.classList.remove('active-pressing');
+    idoc.body.classList.remove('af-touch-dragging');
+
+    if (hasMoved && activeScrollEl) {
+      // Launch kinetic momentum scroll
+      let currentVelY = velY * 16;
+      let currentVelX = velX * 16;
+      const friction = 0.94;
+      const targetScrollEl = activeScrollEl;
+
+      if (Math.hypot(currentVelX, currentVelY) > 2) {
+        function stepMomentum() {
+          if (Math.abs(currentVelY) < 0.1 && Math.abs(currentVelX) < 0.1) {
+            momentumAnimId = null;
+            return;
+          }
+          targetScrollEl.scrollTop -= currentVelY;
+          targetScrollEl.scrollLeft -= currentVelX;
+          currentVelY *= friction;
+          currentVelX *= friction;
+          momentumAnimId = requestAnimationFrame(stepMomentum);
+        }
+        momentumAnimId = requestAnimationFrame(stepMomentum);
+      }
+    }
+  }
+
+  idoc.addEventListener('mouseenter', (e) => {
+    if (window.__af_mobile_touch_mode === false) return;
+    puck.style.opacity = '1';
+    puck.style.left = `${e.clientX}px`;
+    puck.style.top = `${e.clientY}px`;
+  });
+
+  idoc.addEventListener('mouseleave', () => {
+    puck.style.opacity = '0';
+  });
+
+  idoc.addEventListener('mousedown', (e) => {
+    onTouchStart(e.clientX, e.clientY, e.target);
+  });
+
+  idoc.addEventListener('mousemove', (e) => {
+    onTouchMove(e.clientX, e.clientY);
+  });
+
+  idoc.addEventListener('mouseup', () => {
+    onTouchEnd();
+  });
+
+  // Listen on outer window as well so releasing outside iframe completes momentum glide
+  window.addEventListener('mouseup', () => {
+    if (isDown) onTouchEnd();
+  });
+
+  // Touch screen support (Surface, touchscreen laptops, mobile devices)
+  idoc.addEventListener('touchstart', (e) => {
+    if (e.touches[0]) {
+      onTouchStart(e.touches[0].clientX, e.touches[0].clientY, e.target);
+    }
+  }, { passive: true });
+
+  idoc.addEventListener('touchmove', (e) => {
+    if (e.touches[0]) {
+      onTouchMove(e.touches[0].clientX, e.touches[0].clientY);
+    }
+  }, { passive: true });
+
+  idoc.addEventListener('touchend', () => {
+    onTouchEnd();
+  }, { passive: true });
+
+  // Mouse wheel support inside iframe
+  idoc.addEventListener('wheel', (e) => {
+    const targetEl = findScrollTarget(e.target);
+    if (targetEl) {
+      targetEl.scrollTop += e.deltaY;
+      targetEl.scrollLeft += e.deltaX;
+    }
+  }, { passive: true });
+
+  // Intercept click during swipe so links aren't accidentally triggered during touch drag
+  idoc.addEventListener('click', (e) => {
+    if (hasMoved) {
+      e.preventDefault();
+      e.stopPropagation();
+      hasMoved = false;
+    }
+  }, true);
+}
+
+function applyVisionFilterToMobileSimulator(filterType) {
+  const iframe = document.getElementById('af-mob-iframe');
+  if (!iframe) return;
+  try {
+    const idoc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!idoc || !idoc.documentElement) return;
+
+    const CVD_FILTER_ID_MAP = {
+      protanopia: '__af_cvd_protanopia__',
+      deuteranopia: '__af_cvd_deuteranopia__',
+      tritanopia: '__af_cvd_tritanopia__',
+      achromatopsia: '__af_cvd_achromatopsia__',
+    };
+
+    let defsSvg = idoc.getElementById('__af_sim_cvd_defs__');
+    if (!defsSvg) {
+      defsSvg = idoc.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      defsSvg.id = '__af_sim_cvd_defs__';
+      defsSvg.setAttribute('style', 'position: absolute; height: 0; width: 0; overflow: hidden;');
+      defsSvg.setAttribute('aria-hidden', 'true');
+      defsSvg.innerHTML = `
+        <defs>
+          <filter id="__af_cvd_protanopia__">
+            <feColorMatrix type="matrix" values="
+              0.567, 0.433, 0.000, 0, 0
+              0.558, 0.442, 0.000, 0, 0
+              0.000, 0.242, 0.758, 0, 0
+              0.000, 0.000, 0.000, 1, 0" />
+          </filter>
+          <filter id="__af_cvd_deuteranopia__">
+            <feColorMatrix type="matrix" values="
+              0.625, 0.375, 0.000, 0, 0
+              0.700, 0.300, 0.000, 0, 0
+              0.000, 0.300, 0.700, 0, 0
+              0.000, 0.000, 0.000, 1, 0" />
+          </filter>
+          <filter id="__af_cvd_tritanopia__">
+            <feColorMatrix type="matrix" values="
+              0.950, 0.050, 0.000, 0, 0
+              0.000, 0.433, 0.567, 0, 0
+              0.000, 0.475, 0.525, 0, 0
+              0.000, 0.000, 0.000, 1, 0" />
+          </filter>
+          <filter id="__af_cvd_achromatopsia__">
+            <feColorMatrix type="matrix" values="
+              0.299, 0.587, 0.114, 0, 0
+              0.299, 0.587, 0.114, 0, 0
+              0.299, 0.587, 0.114, 0, 0
+              0.000, 0.000, 0.000, 1, 0" />
+          </filter>
+        </defs>
+      `;
+      idoc.documentElement.appendChild(defsSvg);
+    }
+
+    if (!filterType || filterType === 'none') {
+      idoc.documentElement.style.removeProperty('filter');
+    } else if (CVD_FILTER_ID_MAP[filterType]) {
+      idoc.documentElement.style.setProperty('filter', `url(#${CVD_FILTER_ID_MAP[filterType]})`, 'important');
+    } else if (filterType === 'cataracts') {
+      idoc.documentElement.style.setProperty('filter', 'blur(3.5px) contrast(0.82) brightness(1.05)', 'important');
+    } else if (filterType === 'photophobia') {
+      idoc.documentElement.style.setProperty('filter', 'invert(1) hue-rotate(180deg) contrast(1.15)', 'important');
+    }
+
+    const visionSelect = document.getElementById('af-mob-vision-select');
+    if (visionSelect && visionSelect.value !== (filterType || 'none')) {
+      visionSelect.value = filterType || 'none';
+    }
+  } catch (err) {
+    console.warn('[Mobile Simulator] Vision filter apply warning:', err);
+  }
+}
+
+function openDeviceWindow(url, width, height) {
+  const targetUrl = url || window.location.href;
+  const w = width || 393;
+  const h = height || 852;
+  try {
+    if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+      chrome.runtime.sendMessage({
+        action: 'OPEN_DEVICE_WINDOW',
+        url: targetUrl,
+        width: w,
+        height: h
+      }, (resp) => {
+        if (!resp?.success) {
+          window.open(targetUrl, '_blank', `width=${w},height=${h},menubar=no,toolbar=no,location=yes,status=no,resizable=yes`);
+        }
+      });
+      return;
+    }
+  } catch (_) {}
+  window.open(targetUrl, '_blank', `width=${w},height=${h},menubar=no,toolbar=no,location=yes,status=no,resizable=yes`);
+}
+
+/**
+ * Injects rich spotlight, beacon, collision zone, and pulse styles into the simulator iframe document.
+ */
+function injectMobileSimulatorHighlightStyles(idoc) {
+  if (!idoc) return;
+  let style = idoc.getElementById('__af_mob_sim_highlight_styles__');
+  if (!style) {
+    style = idoc.createElement('style');
+    style.id = '__af_mob_sim_highlight_styles__';
+    style.textContent = `
+      .af-mob-highlight-target {
+        outline: 3.5px solid #ef4444 !important;
+        outline-offset: 3px !important;
+        box-shadow: 0 0 25px rgba(239, 68, 68, 0.95), inset 0 0 15px rgba(239, 68, 68, 0.3) !important;
+        transition: all 0.25s ease !important;
+        animation: afMobPulseA 1.4s infinite alternate !important;
+      }
+      .af-mob-highlight-secondary {
+        outline: 3.5px dashed #f59e0b !important;
+        outline-offset: 3px !important;
+        box-shadow: 0 0 25px rgba(245, 158, 11, 0.95), inset 0 0 15px rgba(245, 158, 11, 0.3) !important;
+        transition: all 0.25s ease !important;
+        animation: afMobPulseB 1.4s infinite alternate !important;
+      }
+      #__af_mob_spotlight_overlay__ {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        min-height: 100%;
+        pointer-events: none;
+        z-index: 2147483640;
+      }
+      .af-mob-box {
+        position: absolute;
+        box-sizing: border-box;
+        pointer-events: none;
+        border-radius: 6px;
+      }
+      .af-mob-box-a {
+        border: 3px solid #ef4444;
+        box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.35), 0 0 25px rgba(239, 68, 68, 0.85), inset 0 0 15px rgba(239, 68, 68, 0.25);
+        animation: afMobPulseA 1.4s infinite alternate;
+      }
+      .af-mob-box-b {
+        border: 3px dashed #f59e0b;
+        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.35), 0 0 25px rgba(245, 158, 11, 0.85), inset 0 0 15px rgba(245, 158, 11, 0.25);
+        animation: afMobPulseB 1.4s infinite alternate;
+      }
+      .af-mob-box-tag {
+        position: absolute;
+        top: -24px;
+        left: 0;
+        background: #090d16;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-size: 10.5px;
+        font-weight: 700;
+        padding: 2px 7px;
+        border-radius: 4px;
+        white-space: nowrap;
+        pointer-events: none;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .af-mob-box-a .af-mob-box-tag { border-color: #ef4444; color: #fca5a5; }
+      .af-mob-box-b .af-mob-box-tag { border-color: #f59e0b; color: #fde68a; }
+      .af-mob-collision-box {
+        position: absolute;
+        box-sizing: border-box;
+        background: repeating-linear-gradient(135deg, rgba(239, 68, 68, 0.38) 0px, rgba(239, 68, 68, 0.38) 8px, rgba(245, 158, 11, 0.38) 8px, rgba(245, 158, 11, 0.38) 16px);
+        border: 2px solid #ef4444;
+        box-shadow: 0 0 25px rgba(239, 68, 68, 0.7);
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+      }
+      .af-mob-collision-badge {
+        background: rgba(15, 23, 42, 0.95);
+        border: 1.5px solid #ef4444;
+        color: #fee2e2;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-size: 10px;
+        font-weight: 800;
+        padding: 2px 7px;
+        border-radius: 4px;
+        box-shadow: 0 3px 10px rgba(0,0,0,0.7);
+        white-space: nowrap;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+      }
+      .af-mob-overflow-marker {
+        position: absolute;
+        right: 0;
+        background: rgba(239, 68, 68, 0.92);
+        color: #fff;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-size: 10.5px;
+        font-weight: 800;
+        padding: 3px 8px;
+        border-radius: 4px 0 0 4px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+        pointer-events: none;
+        z-index: 2147483645;
+        white-space: nowrap;
+      }
+      .af-mob-touch-target-box {
+        position: absolute;
+        box-sizing: border-box;
+        border: 2px dashed #38bdf8;
+        background: rgba(56, 189, 248, 0.12);
+        border-radius: 8px;
+        pointer-events: none;
+      }
+      .af-mob-touch-badge {
+        position: absolute;
+        bottom: -20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #0284c7;
+        color: #fff;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-size: 9.5px;
+        font-weight: 700;
+        padding: 1px 6px;
+        border-radius: 3px;
+        white-space: nowrap;
+      }
+      .af-mob-corner {
+        position: absolute;
+        width: 8px;
+        height: 8px;
+        border-color: #ffffff;
+        border-style: solid;
+      }
+      .af-mob-tl { top: -2px; left: -2px; border-width: 2.5px 0 0 2.5px; border-top-left-radius: 3px; }
+      .af-mob-tr { top: -2px; right: -2px; border-width: 2.5px 2.5px 0 0; border-top-right-radius: 3px; }
+      .af-mob-bl { bottom: -2px; left: -2px; border-width: 0 0 2.5px 2.5px; border-bottom-left-radius: 3px; }
+      .af-mob-br { bottom: -2px; right: -2px; border-width: 0 2.5px 2.5px 0; border-bottom-right-radius: 3px; }
+      @keyframes afMobPulseA {
+        0% { box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.3), 0 0 15px rgba(239, 68, 68, 0.7); }
+        100% { box-shadow: 0 0 0 7px rgba(239, 68, 68, 0.5), 0 0 32px rgba(239, 68, 68, 0.95); }
+      }
+      @keyframes afMobPulseB {
+        0% { box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.3), 0 0 15px rgba(245, 158, 11, 0.7); }
+        100% { box-shadow: 0 0 0 7px rgba(245, 158, 11, 0.5), 0 0 32px rgba(245, 158, 11, 0.95); }
+      }
+    `;
+    (idoc.head || idoc.body || idoc.documentElement).appendChild(style);
+  }
+}
+
+/**
+ * Clears active mobile simulator highlights, visual overlay boxes, and in-screen banners.
+ */
+function clearMobileSimulatorHighlights(idoc, mobSimRoot) {
+  if (idoc) {
+    try {
+      idoc.querySelectorAll('.af-mob-highlight-target, .af-mob-highlight-secondary').forEach(el => {
+        el.classList.remove('af-mob-highlight-target', 'af-mob-highlight-secondary');
+      });
+      const overlay = idoc.getElementById('__af_mob_spotlight_overlay__');
+      if (overlay) overlay.remove();
+    } catch (_) {}
+  }
+  const screenBanner = document.getElementById('af-mob-screen-banner');
+  if (screenBanner) screenBanner.remove();
+
+  if (mobSimRoot) {
+    mobSimRoot.querySelectorAll('.af-mob-issue-card').forEach(c => c.classList.remove('active'));
+    const drawerTitle = mobSimRoot.querySelector('.af-mob-drawer-title');
+    if (drawerTitle && drawerTitle.__af_original_title) {
+      drawerTitle.innerHTML = drawerTitle.__af_original_title;
+    }
+  }
+}
+
+/**
+ * Extracts a concise, readable element label for tags and banners
+ */
+function getShortElementLabel(el, selector = '', fallback = 'Element') {
+  if (el) {
+    if (el.id) return `#${el.id}`;
+    const txt = (el.innerText || el.textContent || '').trim();
+    if (txt) return `<${el.tagName.toLowerCase()}> "${txt.slice(0, 22)}${txt.length > 22 ? '…' : ''}"`;
+    if (el.tagName === 'A' && el.getAttribute('href')) return `<a> (${el.getAttribute('href').slice(0, 20)})`;
+    if (el.className && typeof el.className === 'string') {
+      const firstCls = el.className.trim().split(/\s+/)[0];
+      if (firstCls) return `.${firstCls}`;
+    }
+    return `<${el.tagName.toLowerCase()}>`;
+  }
+  if (selector) {
+    const parts = selector.split(/\s*>\s*|\s+/).filter(Boolean);
+    return parts[parts.length - 1] || selector;
+  }
+  return fallback;
+}
+
+/**
+ * Renders the visual overlay boxes, corner brackets, badges, and collision zones inside idoc
+ */
+function renderMobileSimulatorOverlay(idoc, targetA, targetB, meta = {}) {
+  if (!idoc || !idoc.body) return;
+
+  const existing = idoc.getElementById('__af_mob_spotlight_overlay__');
+  if (existing) existing.remove();
+
+  const overlay = idoc.createElement('div');
+  overlay.id = '__af_mob_spotlight_overlay__';
+
+  const win = idoc.defaultView || window;
+  const scrollX = win.scrollX || idoc.documentElement.scrollLeft || 0;
+  const scrollY = win.scrollY || idoc.documentElement.scrollTop || 0;
+
+  let rA = null;
+  if (targetA) {
+    const b = targetA.getBoundingClientRect();
+    rA = {
+      top: b.top + scrollY,
+      left: b.left + scrollX,
+      width: Math.max(b.width, 24),
+      height: Math.max(b.height, 20),
+    };
+  } else if (meta.rect) {
+    rA = {
+      top: meta.rect.top,
+      left: meta.rect.left,
+      width: Math.max(meta.rect.width, 24),
+      height: Math.max(meta.rect.height, 20),
+    };
+  }
+
+  let rB = null;
+  if (targetB) {
+    const b = targetB.getBoundingClientRect();
+    rB = {
+      top: b.top + scrollY,
+      left: b.left + scrollX,
+      width: Math.max(b.width, 24),
+      height: Math.max(b.height, 20),
+    };
+  } else if (meta.rectB) {
+    rB = {
+      top: meta.rectB.top,
+      left: meta.rectB.left,
+      width: Math.max(meta.rectB.width, 24),
+      height: Math.max(meta.rectB.height, 20),
+    };
+  }
+
+  const pad = 4;
+
+  if (rA) {
+    const labelA = getShortElementLabel(targetA, meta.selector || meta.target, 'Target 1');
+    const boxA = idoc.createElement('div');
+    boxA.className = 'af-mob-box af-mob-box-a';
+    boxA.style.top = `${Math.round(rA.top - pad)}px`;
+    boxA.style.left = `${Math.round(rA.left - pad)}px`;
+    boxA.style.width = `${Math.round(rA.width + pad * 2)}px`;
+    boxA.style.height = `${Math.round(rA.height + pad * 2)}px`;
+    boxA.innerHTML = `
+      <div class="af-mob-box-tag">🎯 Target 1: <span>${escapeHtml(labelA)}</span></div>
+      <div class="af-mob-corner af-mob-tl"></div>
+      <div class="af-mob-corner af-mob-tr"></div>
+      <div class="af-mob-corner af-mob-bl"></div>
+      <div class="af-mob-corner af-mob-br"></div>
+    `;
+    overlay.appendChild(boxA);
+  }
+
+  if (rB) {
+    const labelB = getShortElementLabel(targetB, meta.selectorB, 'Colliding 2');
+    const boxB = idoc.createElement('div');
+    boxB.className = 'af-mob-box af-mob-box-b';
+    boxB.style.top = `${Math.round(rB.top - pad)}px`;
+    boxB.style.left = `${Math.round(rB.left - pad)}px`;
+    boxB.style.width = `${Math.round(rB.width + pad * 2)}px`;
+    boxB.style.height = `${Math.round(rB.height + pad * 2)}px`;
+    boxB.innerHTML = `
+      <div class="af-mob-box-tag">⚡ Colliding 2: <span>${escapeHtml(labelB)}</span></div>
+      <div class="af-mob-corner af-mob-tl"></div>
+      <div class="af-mob-corner af-mob-tr"></div>
+      <div class="af-mob-corner af-mob-bl"></div>
+      <div class="af-mob-corner af-mob-br"></div>
+    `;
+    overlay.appendChild(boxB);
+  }
+
+  // Draw Collision Zone Box if this is an overlap issue
+  if (rA && rB && meta.type === 'overlap') {
+    const overlapLeft = Math.max(rA.left, rB.left);
+    const overlapTop = Math.max(rA.top, rB.top);
+    const overlapRight = Math.min(rA.left + rA.width, rB.left + rB.width);
+    const overlapBottom = Math.min(rA.top + rA.height, rB.top + rB.height);
+    const overlapW = overlapRight - overlapLeft;
+    const overlapH = overlapBottom - overlapTop;
+
+    if (overlapW > 0 && overlapH > 0) {
+      const colBox = idoc.createElement('div');
+      colBox.className = 'af-mob-collision-box';
+      colBox.style.top = `${Math.round(overlapTop)}px`;
+      colBox.style.left = `${Math.round(overlapLeft)}px`;
+      colBox.style.width = `${Math.round(overlapW)}px`;
+      colBox.style.height = `${Math.round(overlapH)}px`;
+      colBox.innerHTML = `<span class="af-mob-collision-badge">💥 Collision (${Math.round(overlapW)}×${Math.round(overlapH)}px)</span>`;
+      overlay.appendChild(colBox);
+    }
+  }
+
+  // Draw overflow marker if overflow issue
+  if (rA && meta.type === 'overflow') {
+    const overflowMarker = idoc.createElement('div');
+    overflowMarker.className = 'af-mob-overflow-marker';
+    overflowMarker.style.top = `${Math.round(rA.top)}px`;
+    overflowMarker.innerHTML = `⚠️ Overflow (+${meta.overflowPixels || Math.round(rA.width - (win.innerWidth || 390))}px)`;
+    overlay.appendChild(overflowMarker);
+  }
+
+  // Draw minimum touch target comparison if touch-target issue
+  if (rA && meta.type === 'touch-target') {
+    const minDim = 24;
+    const cX = rA.left + rA.width / 2;
+    const cY = rA.top + rA.height / 2;
+    const targetBox = idoc.createElement('div');
+    targetBox.className = 'af-mob-touch-target-box';
+    targetBox.style.top = `${Math.round(cY - minDim / 2)}px`;
+    targetBox.style.left = `${Math.round(cX - minDim / 2)}px`;
+    targetBox.style.width = `${minDim}px`;
+    targetBox.style.height = `${minDim}px`;
+    targetBox.innerHTML = `<span class="af-mob-touch-badge">Min 24×24px</span>`;
+    overlay.appendChild(targetBox);
+  }
+
+  idoc.body.appendChild(overlay);
+}
+
+/**
+ * Renders the sleek floating inspector banner docked at the bottom of the mobile phone screen
+ */
+function showMobileScreenBanner(screen, meta = {}, targetA = null, targetB = null, idoc = null, mobSimRoot = null) {
+  if (!screen) return;
+
+  const existing = screen.querySelector('#af-mob-screen-banner');
+  if (existing) existing.remove();
+
+  const banner = document.createElement('div');
+  banner.className = 'af-mob-screen-banner';
+  banner.id = 'af-mob-screen-banner';
+
+  const sev = (meta.severity || 'serious').toLowerCase();
+  const title = meta.title || meta.rule || 'Mobile Layout Barrier';
+  const desc = meta.failureSummary || 'This element causes layout obstruction or tap collision on mobile viewports.';
+  const labelA = getShortElementLabel(targetA, meta.selector || meta.target, 'Target Element');
+  const labelB = (meta.selectorB || targetB) ? getShortElementLabel(targetB, meta.selectorB, 'Colliding Element') : null;
+
+  banner.innerHTML = `
+    <div class="af-mob-banner-top">
+      <span class="af-mob-banner-badge ${sev}">${sev.toUpperCase()}</span>
+      <span class="af-mob-banner-title" title="${escapeHtml(title)}">${escapeHtml(title)}</span>
+      <button type="button" class="af-mob-banner-btn-close" id="af-mob-banner-btn-close" title="Dismiss highlight">✕</button>
+    </div>
+    <div class="af-mob-banner-desc">${escapeHtml(desc)}</div>
+    <div class="af-mob-banner-targets">
+      <div class="af-mob-banner-pill af-mob-pill-a">🎯 <strong>Target:</strong> <span>${escapeHtml(labelA)}</span></div>
+      ${labelB ? `<div class="af-mob-banner-pill af-mob-pill-b">⚡ <strong>Colliding with:</strong> <span>${escapeHtml(labelB)}</span></div>` : ''}
+    </div>
+  `;
+
+  banner.querySelector('#af-mob-banner-btn-close')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    clearMobileSimulatorHighlights(idoc, mobSimRoot);
+  });
+
+  screen.appendChild(banner);
+}
+
+/**
+ * Updates the simulator drawer title and activates the matching card
+ */
+function updateDrawerLocatedState(mobSimRoot, targetSelector, meta = {}) {
+  if (!mobSimRoot) return;
+  const drawerBody = mobSimRoot.querySelector('#af-mob-drawer-body');
+  if (drawerBody) {
+    drawerBody.querySelectorAll('.af-mob-issue-card').forEach(c => c.classList.remove('active'));
+    let matchingCard = null;
+    if (typeof meta.index === 'number') {
+      matchingCard = drawerBody.querySelector(`.af-mob-issue-card[data-idx="${meta.index}"]`);
+    }
+    if (!matchingCard) {
+      const cards = Array.from(drawerBody.querySelectorAll('.af-mob-issue-card'));
+      matchingCard = cards.find(card => {
+        const selText = card.querySelector('.af-mob-issue-sel')?.textContent || '';
+        const titleText = card.querySelector('.af-mob-issue-title')?.textContent || '';
+        return (targetSelector && selText.includes(String(targetSelector))) ||
+               (meta.rule && titleText.includes(String(meta.rule))) ||
+               (meta.title && titleText.includes(String(meta.title))) ||
+               (meta.selector && selText.includes(String(meta.selector)));
+      });
+    }
+    if (matchingCard) {
+      matchingCard.classList.add('active');
+      matchingCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+
+  const drawerTitle = mobSimRoot.querySelector('.af-mob-drawer-title');
+  if (drawerTitle) {
+    if (!drawerTitle.__af_original_title) {
+      drawerTitle.__af_original_title = drawerTitle.innerHTML;
+    }
+    const issueName = meta.title || meta.rule || targetSelector || 'Layout Issue';
+    drawerTitle.innerHTML = `<span style="color: #38bdf8;">🎯 Located:</span> <span style="font-size: 11px; color: #f8fafc; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px;">${escapeHtml(issueName)}</span>`;
+  }
+}
+
+/**
+ * Main coordinator function to highlight and visualize issues inside the mobile simulator
+ */
+function highlightInMobileSimulator(targetSelector, meta = {}) {
+  const mobSimRoot = document.getElementById('__auditforge_mobile_sim_root__');
+  const mobSimIframe = document.querySelector('#af-mob-iframe');
+  const screen = document.getElementById('af-mob-screen');
+  if (!mobSimRoot || !mobSimIframe) return { success: false, error: 'Mobile simulator is not active' };
+
+  const idoc = mobSimIframe.contentDocument || mobSimIframe.contentWindow?.document;
+  if (!idoc) return { success: false, error: 'Simulator iframe document unavailable' };
+
+  // 1. Ensure CSS highlight styles exist inside the simulator iframe
+  injectMobileSimulatorHighlightStyles(idoc);
+
+  // 2. Clear any prior highlight classes, overlay boxes, and screen banners
+  clearMobileSimulatorHighlights(idoc, mobSimRoot);
+
+  // 3. Resolve target element A and colliding element B
+  let targetA = meta.__af_elA && idoc.contains(meta.__af_elA) ? meta.__af_elA : null;
+  let targetB = meta.__af_elB && idoc.contains(meta.__af_elB) ? meta.__af_elB : null;
+
+  if (!targetA && targetSelector) {
+    targetA = findElement(targetSelector, idoc, meta);
+  }
+  if (!targetB && meta.selectorB) {
+    targetB = findElement(meta.selectorB, idoc, { html: meta.htmlB, text: meta.textB, target: meta.title });
+  }
+
+  // Handle viewport-meta issue
+  if (meta.type === 'viewport-meta') {
+    showMobileScreenBanner(screen, meta, null, null, idoc, mobSimRoot);
+    updateDrawerLocatedState(mobSimRoot, targetSelector, meta);
+    return { success: true, inSimulator: true };
+  }
+
+  if (targetA) {
+    try {
+      targetA.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+    } catch (_) {
+      try { targetA.scrollIntoView(true); } catch (_) {}
+    }
+    targetA.classList.add('af-mob-highlight-target');
+  }
+
+  if (targetB) {
+    targetB.classList.add('af-mob-highlight-secondary');
+  }
+
+  // 4. Render visual overlay layer (bounding boxes, badges, collision hazard zone)
+  renderMobileSimulatorOverlay(idoc, targetA, targetB, meta);
+
+  // 5. Render sleek in-screen inspector banner docked at the bottom of the phone screen
+  showMobileScreenBanner(screen, meta, targetA, targetB, idoc, mobSimRoot);
+
+  // 6. Update drawer card active state and located badge
+  updateDrawerLocatedState(mobSimRoot, targetSelector, meta);
+
+  return { success: true, inSimulator: true, targetA: Boolean(targetA), targetB: Boolean(targetB) };
+}
+
+function startMobileSimulator(options = {}) {
+  stopMobileSimulator();
+
+  let currentDeviceId = options.deviceId || 'iphone-16-pro';
+  let isLandscape = Boolean(options.landscape);
+
+  const root = document.createElement('div');
+  root.id = '__auditforge_mobile_sim_root__';
+  root.setAttribute('data-auditforge-ext', 'true');
+
+  const styleEl = document.createElement('style');
+  styleEl.id = '__af_mobile_sim_css__';
+  styleEl.textContent = `
+    #__auditforge_mobile_sim_root__ {
+      position: fixed;
+      inset: 0;
+      z-index: 2147483640;
+      background: rgba(8, 9, 14, 0.88);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      display: flex;
+      flex-direction: column;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      color: #f1f5f9;
+      user-select: none;
+      animation: afMobileFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      overflow: hidden;
+    }
+    @keyframes afMobileFadeIn {
+      from { opacity: 0; transform: scale(0.98); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    #__auditforge_mobile_sim_root__ * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    .af-mob-header {
+      height: 56px;
+      padding: 0 20px;
+      background: rgba(15, 17, 26, 0.95);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-shrink: 0;
+    }
+    .af-mob-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13.5px;
+      font-weight: 700;
+      letter-spacing: -0.2px;
+      color: #f8fafc;
+    }
+    .af-mob-badge {
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      padding: 3px 8px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .af-mob-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .af-mob-select {
+      background: #1e2230;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #f8fafc;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12.5px;
+      font-weight: 500;
+      outline: none;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .af-mob-select:hover, .af-mob-select:focus {
+      border-color: #38bdf8;
+    }
+    .af-mob-btn {
+      background: #1e2230;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #f8fafc;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+    .af-mob-btn:hover {
+      background: #282e42;
+      border-color: rgba(255, 255, 255, 0.25);
+    }
+    .af-mob-btn.active {
+      background: rgba(56, 189, 248, 0.18);
+      border-color: #38bdf8;
+      color: #38bdf8;
+    }
+    .af-mob-btn-close {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #fca5a5;
+    }
+    .af-mob-btn-close:hover {
+      background: rgba(239, 68, 68, 0.3);
+      color: #fff;
+    }
+    .af-mob-body {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      overflow: hidden;
+      position: relative;
+    }
+    .af-mob-device-container {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      height: 100%;
+      max-width: 100%;
+      justify-content: center;
+    }
+    .af-mob-chassis {
+      position: relative;
+      background: #0f111a;
+      border: 11px solid #1e2233;
+      border-radius: 46px;
+      box-shadow: 0 25px 60px -10px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.1);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow: hidden;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      flex-shrink: 0;
+    }
+    .af-mob-notch {
+      position: absolute;
+      top: 9px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 105px;
+      height: 24px;
+      background: #000;
+      border-radius: 14px;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+    .af-mob-lens {
+      width: 9px;
+      height: 9px;
+      background: #0d1626;
+      border: 1.5px solid #1a2744;
+      border-radius: 50%;
+      margin-left: 50px;
+    }
+    .af-mob-screen {
+      width: 100%;
+      height: 100%;
+      border-radius: 36px;
+      background: #fff;
+      overflow: hidden;
+      position: relative;
+    }
+    .af-mob-iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: block;
+      background: #fff;
+    }
+    .af-mob-drawer {
+      width: 360px;
+      max-height: calc(100vh - 120px);
+      background: rgba(15, 17, 26, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 18px 45px rgba(0, 0, 0, 0.6);
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .af-mob-drawer-header {
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .af-mob-drawer-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #f1f5f9;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .af-mob-drawer-body {
+      padding: 12px;
+      overflow-y: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .af-mob-issue-card {
+      background: #181b26;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .af-mob-issue-card:hover {
+      background: #202434;
+      border-color: rgba(56, 189, 248, 0.4);
+      transform: translateY(-1px);
+    }
+    .af-mob-issue-card.active {
+      border-color: #38bdf8;
+      background: #1e2638;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.25);
+    }
+    .af-mob-issue-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .af-mob-issue-tag {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .af-mob-tag-crit { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); }
+    .af-mob-tag-ser  { background: rgba(249, 115, 22, 0.2); color: #fb923c; border: 1px solid rgba(249, 115, 22, 0.4); }
+    .af-mob-tag-mod  { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
+    .af-mob-issue-title {
+      font-weight: 600;
+      color: #f8fafc;
+      line-height: 1.35;
+    }
+    .af-mob-issue-desc {
+      font-size: 11px;
+      color: #94a3b8;
+      line-height: 1.4;
+    }
+    .af-mob-issue-sel {
+      font-family: monospace;
+      font-size: 10.5px;
+      background: #0f111a;
+      padding: 3px 6px;
+      border-radius: 4px;
+      color: #38bdf8;
+      word-break: break-all;
+    }
+    .af-mob-card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 4px;
+      padding-top: 6px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .af-mob-btn-locate-issue {
+      background: #0d2836;
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .af-mob-btn-locate-issue:hover {
+      background: #0284c7;
+      color: #ffffff;
+      border-color: #38bdf8;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+    }
+    .af-mob-issue-card.active .af-mob-btn-locate-issue {
+      background: #0284c7;
+      color: #ffffff;
+      border-color: #38bdf8;
+    }
+    .af-mob-status-pill {
+      font-size: 10px;
+      font-weight: 700;
+      color: #38bdf8;
+      display: none;
+      align-items: center;
+      gap: 3px;
+    }
+    .af-mob-issue-card.active .af-mob-status-pill {
+      display: flex;
+    }
+    .af-mob-screen-banner {
+      position: absolute;
+      bottom: 14px;
+      left: 12px;
+      right: 12px;
+      background: rgba(11, 15, 25, 0.95);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      border-top: 3px solid #ef4444;
+      border-radius: 12px;
+      padding: 10px 12px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.8), 0 0 15px rgba(239, 68, 68, 0.3);
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #f8fafc;
+      animation: afMobBannerSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: auto;
+    }
+    .af-mob-banner-top {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .af-mob-banner-badge {
+      font-size: 9.5px;
+      font-weight: 800;
+      padding: 2px 5px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+    .af-mob-banner-badge.critical { background: rgba(239, 68, 68, 0.25); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.5); }
+    .af-mob-banner-badge.serious { background: rgba(249, 115, 22, 0.25); color: #fb923c; border: 1px solid rgba(249, 115, 22, 0.5); }
+    .af-mob-banner-badge.moderate { background: rgba(245, 158, 11, 0.25); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.5); }
+    .af-mob-banner-title {
+      font-size: 11.5px;
+      font-weight: 700;
+      color: #f1f5f9;
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .af-mob-banner-btn-close {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #cbd5e1;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      cursor: pointer;
+      line-height: 1;
+      transition: all 0.15s ease;
+      flex-shrink: 0;
+    }
+    .af-mob-banner-btn-close:hover {
+      background: #ef4444;
+      color: #ffffff;
+      border-color: #ef4444;
+    }
+    .af-mob-banner-desc {
+      font-size: 10.5px;
+      line-height: 1.35;
+      color: #94a3b8;
+    }
+    .af-mob-banner-targets {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      margin-top: 2px;
+    }
+    .af-mob-banner-pill {
+      font-size: 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      padding: 3px 6px;
+      border-radius: 4px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .af-mob-pill-a {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #fca5a5;
+    }
+    .af-mob-pill-b {
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      color: #fde68a;
+    }
+    @keyframes afMobBannerSlideUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .af-mob-empty {
+      padding: 32px 16px;
+      text-align: center;
+      color: #94a3b8;
+      font-size: 12px;
+    }
+  `;
+  root.appendChild(styleEl);
+
+  // Main UI skeleton with clean iframe without restrictive src
+  root.innerHTML += `
+    <div class="af-mob-header">
+      <div class="af-mob-brand">
+        <span>📱 Mobile Viewport Simulator</span>
+        <span class="af-mob-badge" id="af-mob-score-badge">Auditing...</span>
+      </div>
+      <div class="af-mob-controls">
+        <select class="af-mob-select" id="af-mob-device-select">
+          <option value="iphone-16-pro">iPhone 16 / 15 Pro (393 × 852)</option>
+          <option value="iphone-se">iPhone SE (Compact) (375 × 667)</option>
+          <option value="galaxy-s24">Samsung Galaxy S24 (360 × 780)</option>
+          <option value="pixel-8">Google Pixel 8 (412 × 915)</option>
+          <option value="iphone-16-max">iPhone 16 Pro Max (430 × 932)</option>
+        </select>
+        <select class="af-mob-select" id="af-mob-vision-select" title="Simulate Color Vision Deficiency / Low Vision on Mobile View">
+          <option value="none">👁️ Vision: Normal</option>
+          <option value="protanopia">🔴 Protanopia (Red-Blind)</option>
+          <option value="deuteranopia">🟢 Deuteranopia (Green-Blind)</option>
+          <option value="tritanopia">🔵 Tritanopia (Blue-Blind)</option>
+          <option value="achromatopsia">⚪ Achromatopsia (Monochrome)</option>
+          <option value="cataracts">🌫️ Cataracts (Blur)</option>
+          <option value="photophobia">🌓 Photophobia (Invert)</option>
+        </select>
+        <button type="button" class="af-mob-btn active" id="af-mob-btn-mode" title="Toggle between Live Web App (interactive forms & multi-step journeys) and DOM Snapshot mode">
+          <span id="af-mob-mode-icon">🌐</span> <span id="af-mob-mode-text">Live Web</span>
+        </button>
+        <button type="button" class="af-mob-btn" id="af-mob-btn-rotate" title="Rotate device (Portrait / Landscape)">
+          <span>🔄</span> <span>Rotate</span>
+        </button>
+        <button type="button" class="af-mob-btn" id="af-mob-btn-refresh" title="Refresh live snapshot or sync frame">
+          <span>⚡</span> <span>Sync DOM</span>
+        </button>
+        <button type="button" class="af-mob-btn" id="af-mob-btn-popout" title="Open live interactive page at exact device viewport width in a dedicated window">
+          <span>🚀</span> <span>Device Window</span>
+        </button>
+        <button type="button" class="af-mob-btn active" id="af-mob-btn-touch-mode" title="Toggle touch controls emulation (kinetic swipe scrolling vs standard mouse)">
+          <span id="af-mob-touch-icon">👆</span> <span id="af-mob-touch-text">Touch Drag: ON</span>
+        </button>
+        <button type="button" class="af-mob-btn af-mob-btn-close" id="af-mob-btn-close" title="Close simulator (Esc)">
+          <span>✕</span> <span>Close</span>
+        </button>
+      </div>
+    </div>
+    <div class="af-mob-body">
+      <div class="af-mob-device-container">
+        <div class="af-mob-chassis" id="af-mob-chassis">
+          <div class="af-mob-notch" id="af-mob-notch">
+            <div class="af-mob-lens"></div>
+          </div>
+          <div class="af-mob-screen" id="af-mob-screen">
+            <iframe class="af-mob-iframe" id="af-mob-iframe"></iframe>
+          </div>
+        </div>
+        <div class="af-mob-drawer" id="af-mob-drawer">
+          <div class="af-mob-drawer-header">
+            <div class="af-mob-drawer-title">
+              <span>⚠️ Layout Issues</span>
+              <span class="af-mob-badge" id="af-mob-issue-count">0</span>
+            </div>
+          </div>
+          <div class="af-mob-drawer-body" id="af-mob-drawer-body">
+            <div class="af-mob-empty">Evaluating mobile layout...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Mount mobile simulator HUD to document.documentElement (sibling of body)
+  // so visual filters applied to document.body never blur or distort our extension tool
+  (document.documentElement || document.body).appendChild(root);
+
+  // Setup device dimensions & interactions
+  const chassis = root.querySelector('#af-mob-chassis');
+  const screen = root.querySelector('#af-mob-screen');
+  const notch = root.querySelector('#af-mob-notch');
+  const deviceSelect = root.querySelector('#af-mob-device-select');
+  const visionSelect = root.querySelector('#af-mob-vision-select');
+  const btnMode = root.querySelector('#af-mob-btn-mode');
+  const btnRotate = root.querySelector('#af-mob-btn-rotate');
+  const btnRefresh = root.querySelector('#af-mob-btn-refresh');
+  const btnPopout = root.querySelector('#af-mob-btn-popout');
+  const btnTouchMode = root.querySelector('#af-mob-btn-touch-mode');
+  const btnClose = root.querySelector('#af-mob-btn-close');
+  const drawerBody = root.querySelector('#af-mob-drawer-body');
+  const scoreBadge = root.querySelector('#af-mob-score-badge');
+  const issueCountBadge = root.querySelector('#af-mob-issue-count');
+  const mobIframe = root.querySelector('#af-mob-iframe');
+
+  if (deviceSelect) deviceSelect.value = currentDeviceId;
+  if (visionSelect) visionSelect.value = window.__af_active_color_filter || 'none';
+
+  // Determine initial simulator mode
+  let currentSimMode = options.mode || (window.location.protocol.startsWith('http') && !window.location.hostname.includes('.test') ? 'live' : 'snapshot');
+
+  function updateModeButtonUI() {
+    if (!btnMode) return;
+    const isLive = currentSimMode === 'live';
+    btnMode.classList.toggle('active', isLive);
+    const icon = root.querySelector('#af-mob-mode-icon');
+    const text = root.querySelector('#af-mob-mode-text');
+    if (icon) icon.textContent = isLive ? '🌐' : '📸';
+    if (text) text.textContent = isLive ? 'Live Web' : 'Snapshot';
+  }
+  updateModeButtonUI();
+
+  function updateDeviceLayout(targetDoc) {
+    const dev = POPULAR_MOBILE_DEVICES[currentDeviceId] || POPULAR_MOBILE_DEVICES['iphone-16-pro'];
+    let w = isLandscape ? dev.height : dev.width;
+    let h = isLandscape ? dev.width : dev.height;
+
+    // Scale to fit screen height comfortably if necessary
+    const availableH = window.innerHeight - 150;
+    const availableW = window.innerWidth - 440;
+    let scaleH = h > availableH ? availableH / h : 1;
+    let scaleW = w > availableW ? availableW / w : 1;
+    let scale = Math.min(scaleH, scaleW);
+    scale = Math.max(0.45, Math.min(1, scale));
+
+    if (screen) {
+      screen.style.width = `${w}px`;
+      screen.style.height = `${h}px`;
+    }
+    if (chassis) {
+      chassis.style.width = `${w + 22}px`;
+      chassis.style.height = `${h + 22}px`;
+      chassis.style.transform = scale < 1 ? `scale(${scale.toFixed(3)})` : 'none';
+      chassis.style.transformOrigin = 'center center';
+    }
+    if (notch) {
+      notch.style.display = isLandscape ? 'none' : 'flex';
+    }
+
+    const docToScan = targetDoc || (mobIframe && (mobIframe.contentDocument || mobIframe.contentWindow?.document)) || document;
+
+    // Run layout scan for this specific device
+    const report = evaluateMobileResponsiveLayout(currentDeviceId, { isLandscape, rootDoc: docToScan });
+    const devIssues = report.issuesByDevice[currentDeviceId] || report.issues || [];
+
+    // Store state globally for extension popup and external test access
+    window.__af_last_mobile_report = report;
+    window.__af_active_mobile_device = currentDeviceId;
+
+    try {
+      window.dispatchEvent(new CustomEvent('__auditforge_mobile_layout_updated', {
+        detail: { report, deviceId: currentDeviceId, isLandscape }
+      }));
+    } catch (_) {}
+
+    try {
+      if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+        chrome.runtime.sendMessage({
+          action: 'MOBILE_SIMULATOR_LAYOUT_UPDATED',
+          report,
+          deviceId: currentDeviceId,
+          isLandscape,
+        }).catch(() => {});
+      }
+    } catch (_) {}
+
+    if (scoreBadge) {
+      scoreBadge.textContent = `${report.mobileScore}/100 (${report.grade})`;
+      scoreBadge.style.color = report.mobileScore >= 80 ? '#4ade80' : (report.mobileScore >= 65 ? '#fbbf24' : '#f87171');
+    }
+    if (issueCountBadge) {
+      issueCountBadge.textContent = String(devIssues.length);
+    }
+
+    // Populate drawer
+    if (drawerBody) {
+      if (devIssues.length === 0) {
+        drawerBody.innerHTML = `
+          <div class="af-mob-empty" style="color: #4ade80;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-bottom: 8px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            <p><strong>Clean Mobile Layout</strong></p>
+            <p>No overlapping elements, horizontal overflows, or disjointed steps detected on ${dev.name}.</p>
+          </div>
+        `;
+      } else {
+        drawerBody.innerHTML = devIssues.map((iss, idx) => {
+          const tagClass = iss.severity === 'critical' ? 'af-mob-tag-crit' : (iss.severity === 'serious' ? 'af-mob-tag-ser' : 'af-mob-tag-mod');
+          return `
+            <div class="af-mob-issue-card" data-idx="${idx}">
+              <div class="af-mob-issue-top">
+                <span class="af-mob-issue-tag ${tagClass}">${iss.severity}</span>
+                <span style="font-size: 11px; color: #64748b;">${iss.type}</span>
+              </div>
+              <div class="af-mob-issue-title">${escapeHtml(iss.title)}</div>
+              <div class="af-mob-issue-desc">${escapeHtml(iss.failureSummary)}</div>
+              <div class="af-mob-issue-sel">${escapeHtml(iss.selector)}</div>
+              <div class="af-mob-card-footer">
+                <button type="button" class="af-mob-btn-locate-issue" data-idx="${idx}" title="Highlight and visualize this issue on the mobile page">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+                  <span>🎯 Highlight on Screen</span>
+                </button>
+                <span class="af-mob-status-pill">📍 Highlighting</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        // Wire click listener to cards and locate buttons
+        drawerBody.querySelectorAll('.af-mob-issue-card').forEach(card => {
+          card.addEventListener('click', (e) => {
+            const idx = parseInt(card.getAttribute('data-idx') || '0', 10);
+            const iss = devIssues[idx];
+            if (!iss) return;
+
+            const isAlreadyActive = card.classList.contains('active');
+            if (isAlreadyActive && !e.target.closest('.af-mob-btn-locate-issue')) {
+              // Toggle/dismiss on re-click of card body
+              clearMobileSimulatorHighlights(mobIframe?.contentDocument || mobIframe?.contentWindow?.document, root);
+              return;
+            }
+
+            highlightInMobileSimulator(iss.selector, {
+              ...iss,
+              index: idx,
+            });
+          });
+        });
+      }
+    }
+  }
+
+  // Initial population of iframe
+  populateMobileSimulatorIframe(mobIframe, {
+    mode: currentSimMode,
+    onUpdateLayout: (idoc) => updateDeviceLayout(idoc)
+  });
+
+  btnMode?.addEventListener('click', () => {
+    currentSimMode = currentSimMode === 'live' ? 'snapshot' : 'live';
+    window.__af_mobile_sim_mode = currentSimMode;
+    updateModeButtonUI();
+    populateMobileSimulatorIframe(mobIframe, {
+      mode: currentSimMode,
+      onUpdateLayout: (idoc) => updateDeviceLayout(idoc)
+    });
+  });
+
+  deviceSelect?.addEventListener('change', (e) => {
+    currentDeviceId = e.target.value;
+    updateDeviceLayout();
+  });
+
+  visionSelect?.addEventListener('change', (e) => {
+    const filterVal = e.target.value;
+    if (typeof window.__auditforgeSetColorFilter === 'function') {
+      window.__auditforgeSetColorFilter(filterVal);
+    }
+  });
+
+  btnRotate?.addEventListener('click', () => {
+    isLandscape = !isLandscape;
+    btnRotate.classList.toggle('active', isLandscape);
+    updateDeviceLayout();
+  });
+
+  btnRefresh?.addEventListener('click', () => {
+    populateMobileSimulatorIframe(mobIframe, {
+      mode: currentSimMode,
+      onUpdateLayout: (idoc) => updateDeviceLayout(idoc)
+    });
+    updateDeviceLayout();
+  });
+
+  btnPopout?.addEventListener('click', () => {
+    const dev = POPULAR_MOBILE_DEVICES[currentDeviceId] || POPULAR_MOBILE_DEVICES['iphone-16-pro'];
+    let w = isLandscape ? dev.height : dev.width;
+    let h = isLandscape ? dev.width : dev.height;
+    openDeviceWindow(window.location.href, w, h);
+  });
+
+  btnTouchMode?.addEventListener('click', () => {
+    window.__af_mobile_touch_mode = !(window.__af_mobile_touch_mode !== false);
+    const isTouch = window.__af_mobile_touch_mode;
+    btnTouchMode.classList.toggle('active', isTouch);
+    const icon = root.querySelector('#af-mob-touch-icon');
+    const text = root.querySelector('#af-mob-touch-text');
+    if (icon) icon.textContent = isTouch ? '👆' : '🖱️';
+    if (text) text.textContent = isTouch ? 'Touch Drag: ON' : 'Mouse Mode';
+
+    try {
+      const idoc = mobIframe.contentDocument || mobIframe.contentWindow?.document;
+      if (idoc && idoc.body) {
+        idoc.body.style.cursor = isTouch ? 'grab' : 'default';
+        const puck = idoc.getElementById('__af_touch_puck__');
+        if (puck) puck.style.display = isTouch ? 'block' : 'none';
+      }
+    } catch (_) {}
+  });
+
+  btnClose?.addEventListener('click', () => {
+    stopMobileSimulator();
+  });
+
+  const onKey = (e) => {
+    if (e.key === 'Escape') {
+      stopMobileSimulator();
+    }
+  };
+  window.addEventListener('keydown', onKey);
+
+  // Initialize
+  updateDeviceLayout();
+
+  mobileSimCleanup = () => {
+    window.removeEventListener('keydown', onKey);
+    root.remove();
+  };
+
+  return { active: true, deviceId: currentDeviceId, report: window.__af_last_mobile_report };
+}
+
+function stopMobileSimulator() {
+  if (typeof mobileSimCleanup === 'function') {
+    mobileSimCleanup();
+    mobileSimCleanup = null;
+  }
+  document.getElementById('__auditforge_mobile_sim_root__')?.remove();
+  window.__af_last_mobile_report = null;
+
+  try {
+    window.dispatchEvent(new CustomEvent('__auditforge_mobile_layout_updated', {
+      detail: { active: false }
+    }));
+  } catch (_) {}
+
+  try {
+    if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+      chrome.runtime.sendMessage({
+        action: 'MOBILE_SIMULATOR_LAYOUT_UPDATED',
+        active: false,
+      }).catch(() => {});
+    }
+  } catch (_) {}
+
+  return { active: false };
+}
+
   /**
    * Main audit execution entry point
    * @returns {Promise<Object>} Complete audit report
@@ -2036,6 +4865,9 @@
     }
     if (typeof window.__auditforgeClearHighlight === 'function') {
       try { window.__auditforgeClearHighlight(); } catch (_) {}
+    }
+    if (typeof stopMobileSimulator === 'function') {
+      try { stopMobileSimulator(); } catch (_) {}
     }
 
     const startTime = performance.now();
@@ -2062,6 +4894,14 @@
     const formattedViolations = [];
 
     for (const v of axeResults.violations) {
+      // Exclude non-normative best practices that are not WCAG A/AA requirements
+      const isNormativeWcag = Array.isArray(v.tags) && v.tags.some(t =>
+        t.startsWith('wcag2a') || t.startsWith('wcag2aa') ||
+        t.startsWith('wcag21a') || t.startsWith('wcag21aa') ||
+        t.startsWith('wcag22a') || t.startsWith('wcag22aa')
+      );
+      if (!isNormativeWcag) continue;
+
       const severity = v.impact || 'moderate';
       if (violationsBySeverity[severity] !== undefined) {
         violationsBySeverity[severity] += v.nodes.length;
@@ -2175,15 +5015,6 @@
           wcagRule: 'WCAG 2.2 AA 1.1.1 / 4.1.2',
           tags: ['wcag2aa', 'wcag111', 'wcag412'],
         },
-        {
-          key: 'redundantRoleNodes',
-          id: 'aria-label-redundant-role',
-          impact: 'minor',
-          help: 'Accessible label should not redundantly repeat the element role',
-          description: 'Accessible labels should not include the element role name (e.g. "Submit button" on a <button>) because screen readers announce the role natively.',
-          wcagRule: 'WCAG Best Practice / 4.1.2',
-          tags: ['best-practice', 'wcag412'],
-        },
       ];
 
       for (const def of ariaDefs) {
@@ -2225,24 +5056,6 @@
           description: 'Interactive controls (buttons, links, inputs) must not be nested inside elements with aria-hidden="true". Keyboard focus enters the control, but the screen reader announces complete silence.',
           wcagRule: 'WCAG 2.2 A 4.1.2',
           tags: ['wcag2a', 'wcag412'],
-        },
-        {
-          key: 'headingNodes',
-          id: 'screen-reader-heading-order',
-          impact: 'serious',
-          help: 'Heading levels are missing, empty, or skipped, breaking rotor navigation',
-          description: 'Headings must start with an <h1> and progress sequentially without skipping levels (e.g. h1 directly to h3/h4) to support screen reader heading rotor navigation.',
-          wcagRule: 'WCAG 2.2 AA 1.3.1 / 2.4.6',
-          tags: ['wcag2aa', 'wcag131', 'wcag246'],
-        },
-        {
-          key: 'landmarkNodes',
-          id: 'screen-reader-landmarks',
-          impact: 'serious',
-          help: 'Page lacks primary <main> landmark or has duplicate unlabelled landmarks',
-          description: 'Pages must include a semantic <main> landmark to allow blind users to bypass headers, and multiple <nav> landmarks must have distinguishing aria-labels.',
-          wcagRule: 'WCAG 2.2 AA 1.3.1 / 2.4.1',
-          tags: ['wcag2aa', 'wcag131', 'wcag241'],
         },
         {
           key: 'altQualityNodes',
@@ -2332,6 +5145,14 @@
       console.warn('[WCAG Auditor] Link extraction notice:', linkErr);
     }
 
+    // 7. Run Mobile & Responsive Layout Audit
+    let mobileLayoutData = null;
+    try {
+      mobileLayoutData = evaluateMobileResponsiveLayout('iphone-16-pro');
+    } catch (mobileErr) {
+      console.warn('[WCAG Auditor] Mobile layout evaluation notice:', mobileErr);
+    }
+
     // Sort violations by severity: critical first, then serious, moderate, minor
     const severityOrder = { critical: 1, serious: 2, moderate: 3, minor: 4 };
     formattedViolations.sort((a, b) => (severityOrder[a.impact] || 5) - (severityOrder[b.impact] || 5));
@@ -2355,6 +5176,7 @@
       speechSequence,
       tabOrder: tabOrderData,
       links: pageLinks,
+      mobileLayout: mobileLayoutData,
       stats: {
         totalViolations: formattedViolations.reduce((acc, v) => acc + v.affectedCount, 0),
         rulesViolatedCount: formattedViolations.length,
@@ -2372,6 +5194,13 @@
    * Clears any active highlight overlay, spotlight mask, toolbar, or toast from the page.
    */
   window.__auditforgeClearHighlight = function () {
+    const mobSimIframe = document.querySelector('#af-mob-iframe');
+    const mobSimRoot = document.getElementById('__auditforge_mobile_sim_root__');
+    if (mobSimIframe || mobSimRoot) {
+      const idoc = mobSimIframe?.contentDocument || mobSimIframe?.contentWindow?.document;
+      clearMobileSimulatorHighlights(idoc, mobSimRoot);
+    }
+
     if (typeof window.__auditforgeOverlayCleanup === 'function') {
       try {
         window.__auditforgeOverlayCleanup();
@@ -2418,109 +5247,24 @@
       }[c]));
     }
 
-    function findElement(target) {
-      if (!target) return null;
-      if (typeof Element !== 'undefined' && target instanceof Element) {
-        return isExtensionElement(target) ? null : target;
-      }
+    const mobSimRoot = document.getElementById('__auditforge_mobile_sim_root__');
+    const mobSimIframe = document.querySelector('#af-mob-iframe');
+    const isSimActive = Boolean(mobSimRoot && mobSimIframe);
 
-      const tStr = typeof target === 'string' ? target.trim() : (Array.isArray(target) ? target.join(' ') : String(target || ''));
-      if (tStr.includes('__auditforge') || tStr.includes('__af_')) return null;
-
-      // Handle array of selectors (e.g. iframe traversal from axe-core)
-      if (Array.isArray(target)) {
-        if (target.length === 1) return findElement(target[0]);
-        let currentDoc = document;
-        let foundEl = null;
-        for (let i = 0; i < target.length; i++) {
-          const sel = target[i];
-          if (!currentDoc || sel.includes('__auditforge') || sel.includes('__af_')) break;
-          try {
-            foundEl = currentDoc.querySelector(sel);
-            if (foundEl && (foundEl.tagName === 'IFRAME' || foundEl.tagName === 'FRAME')) {
-              try {
-                // @ts-ignore
-                currentDoc = foundEl.contentDocument || foundEl.contentWindow?.document;
-              } catch (_) {
-                return isExtensionElement(foundEl) ? null : foundEl; // Return iframe if cross-origin access blocked
-              }
-            }
-          } catch (_) {
-            break;
-          }
-        }
-        if (foundEl && !isExtensionElement(foundEl)) return foundEl;
-      }
-
-      const selectorStr = typeof target === 'string' ? target.trim() : String(target).trim();
-      if (!selectorStr) return null;
-
-      // Root document scope checks
-      if (selectorStr === 'html' || selectorStr === ':root') return document.documentElement;
-      if (selectorStr === 'body') return document.body;
-
-      // 1. Direct querySelector
+    // If mobile simulator HUD is active on page, spotlight target directly inside the simulator iframe
+    if (isSimActive) {
       try {
-        const el = document.querySelector(selectorStr);
-        if (el && !isExtensionElement(el)) return el;
-      } catch (_) {}
-
-      // 2. Direct ID lookup if selector contains #id
-      if (selectorStr.startsWith('#') && !selectorStr.includes(' ') && !selectorStr.includes('>') && !selectorStr.includes(':')) {
-        try {
-          const el = document.getElementById(selectorStr.slice(1));
-          if (el && !isExtensionElement(el)) return el;
-        } catch (_) {}
-      }
-
-      // 3. Escape CSS identifiers (colons, dots, slashes in Tailwind / React / Vue classes)
-      try {
-        const escaped = selectorStr.replace(/#([^\s>+~.:[\]]+)/g, (_, id) => `#${CSS.escape(id)}`);
-        const el = document.querySelector(escaped);
-        if (el && !isExtensionElement(el)) return el;
-      } catch (_) {}
-
-      // 4. Terminal segment fallback (rightmost component)
-      const parts = selectorStr.split(/\s*>\s*|\s+/).filter(Boolean);
-      if (parts.length > 1) {
-        for (let i = parts.length - 1; i >= 0; i--) {
-          try {
-            const seg = parts[i];
-            if (seg.includes('__auditforge') || seg.includes('__af_')) continue;
-            const el = document.querySelector(seg);
-            if (el && !isExtensionElement(el)) return el;
-          } catch (_) {}
+        const idoc = mobSimIframe.contentDocument || mobSimIframe.contentWindow?.document;
+        if (idoc) {
+          const res = highlightInMobileSimulator(targetSelector, meta);
+          return { success: res.success, inSimulator: true };
         }
+      } catch (err) {
+        console.warn('[Auditor] Simulator highlight error:', err);
       }
-
-      // 5. HTML snippet matching fallback
-      if (meta && meta.html) {
-        try {
-          const tagMatch = meta.html.match(/^<([a-z0-9-]+)/i);
-          if (tagMatch) {
-            const tag = tagMatch[1];
-            const candidates = Array.from(document.querySelectorAll(tag));
-            const snippet = meta.html.slice(0, 45);
-            const matched = candidates.find((c) => !isExtensionElement(c) && c.outerHTML && c.outerHTML.includes(snippet));
-            if (matched) return matched;
-          }
-        } catch (_) {}
-      }
-
-      // 6. Match by text content in interactive elements
-      if (meta && (meta.text || meta.target)) {
-        const queryText = (meta.text || '').trim().toLowerCase();
-        if (queryText) {
-          const interactives = Array.from(document.querySelectorAll('button, a, input, select, textarea, [role="button"], [role="link"], h1, h2, h3, h4, img'));
-          const matched = interactives.find((el) => !isExtensionElement(el) && ((el.innerText || el.textContent || '')).trim().toLowerCase().includes(queryText));
-          if (matched) return matched;
-        }
-      }
-
-      return null;
     }
 
-    const targetEl = findElement(targetSelector);
+    const targetEl = findElement(targetSelector, document, meta);
     const selectorString = Array.isArray(targetSelector) ? targetSelector.join(' ') : String(targetSelector || '');
     const isDocumentScope = targetEl === document.documentElement || targetEl === document.body || selectorString === 'html' || selectorString === 'body' || !selectorString;
     const isNotFound = !targetEl && !isDocumentScope;
@@ -2831,7 +5575,7 @@
     `;
 
     root.appendChild(toolbar);
-    document.body.appendChild(root);
+    (document.documentElement || document.body).appendChild(root);
 
     // Scroll to element smoothly
     if (!isDocumentScope && targetEl) {
@@ -3077,7 +5821,7 @@
       ${controlsHtml}
     `;
 
-    document.body.appendChild(banner);
+    (document.documentElement || document.body).appendChild(banner);
 
     let activeHighlightEl = null;
     let originalOutline = '';
@@ -3533,6 +6277,44 @@
     return { active: true, totalItems: narrative.length, persona: readerConfig.name };
   };
 
+  // Export Mobile Viewport Simulator & Layout functions
+  window.__auditforgeStartMobileSimulator = startMobileSimulator;
+  window.__auditforgeStopMobileSimulator = stopMobileSimulator;
+  window.__auditforgeToggleMobileSimulator = function (options) {
+    if (document.getElementById('__auditforge_mobile_sim_root__')) {
+      return stopMobileSimulator();
+    }
+    return startMobileSimulator(options);
+  };
+  window.__auditforgeEvaluateMobileLayout = evaluateMobileResponsiveLayout;
+  window.__auditforgeOpenDeviceWindow = openDeviceWindow;
+  window.__auditforgeApplyVisionFilterToMobileSimulator = applyVisionFilterToMobileSimulator;
+  window.__auditforgeGetMobileReport = function () {
+    return window.__af_last_mobile_report || null;
+  };
+  window.__auditforgeGetMobileSimulatorState = function () {
+    const isSimActive = Boolean(document.getElementById('__auditforge_mobile_sim_root__'));
+    return {
+      active: isSimActive,
+      deviceId: window.__af_active_mobile_device || 'iphone-16-pro',
+      report: window.__af_last_mobile_report || null,
+    };
+  };
+  window.__auditforgeSetMobileSimulatorDevice = function (deviceId) {
+    const root = document.getElementById('__auditforge_mobile_sim_root__');
+    if (!root) return { active: false };
+    const select = root.querySelector('#af-mob-device-select');
+    if (select && select.value !== deviceId) {
+      select.value = deviceId;
+      select.dispatchEvent(new Event('change'));
+    }
+    return {
+      active: true,
+      deviceId,
+      report: window.__af_last_mobile_report || null,
+    };
+  };
+
   // Export screen reader simulator aliases
   window.__auditforgeStartScreenReaderSimulator = window.__auditforgeStartVoiceOverSimulator;
 
@@ -3673,7 +6455,7 @@
     root.appendChild(svg);
     root.appendChild(badgesContainer);
     root.appendChild(ctrlBar);
-    document.body.appendChild(root);
+    (document.documentElement || document.body).appendChild(root);
 
 
     let currentCoords = [];
@@ -4270,163 +7052,181 @@
     document.getElementById('__af_tunnel_overlay__')?.remove();
     document.getElementById('__af_macular_overlay__')?.remove();
     document.documentElement.style.removeProperty('filter');
+    document.body?.style?.removeProperty('filter');
     if (typeof window.__af_vision_mouse_cleanup === 'function') {
       window.__af_vision_mouse_cleanup();
       window.__af_vision_mouse_cleanup = null;
+    }
+
+    window.__af_active_color_filter = filterType || 'none';
+    if (typeof applyVisionFilterToMobileSimulator === 'function') {
+      applyVisionFilterToMobileSimulator(window.__af_active_color_filter);
     }
 
     if (!filterType || filterType === 'none') {
       return { active: false, filter: 'none' };
     }
 
-    // 1. Color Vision Deficiency (SVG Matrix Filters)
-    if (CVD_FILTER_ID_MAP[filterType]) {
-      let defsSvg = document.getElementById('__auditforge_cvd_defs__');
-      if (!defsSvg) {
-        defsSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        defsSvg.id = '__auditforge_cvd_defs__';
-        defsSvg.setAttribute('style', 'position: absolute; height: 0; width: 0; overflow: hidden;');
-        defsSvg.setAttribute('aria-hidden', 'true');
-        defsSvg.innerHTML = `
-          <defs>
-            <filter id="__af_cvd_protanopia__">
-              <feColorMatrix type="matrix" values="
-                0.567, 0.433, 0.000, 0, 0
-                0.558, 0.442, 0.000, 0, 0
-                0.000, 0.242, 0.758, 0, 0
-                0.000, 0.000, 0.000, 1, 0" />
-            </filter>
-            <filter id="__af_cvd_deuteranopia__">
-              <feColorMatrix type="matrix" values="
-                0.625, 0.375, 0.000, 0, 0
-                0.700, 0.300, 0.000, 0, 0
-                0.000, 0.300, 0.700, 0, 0
-                0.000, 0.000, 0.000, 1, 0" />
-            </filter>
-            <filter id="__af_cvd_tritanopia__">
-              <feColorMatrix type="matrix" values="
-                0.950, 0.050, 0.000, 0, 0
-                0.000, 0.433, 0.567, 0, 0
-                0.000, 0.475, 0.525, 0, 0
-                0.000, 0.000, 0.000, 1, 0" />
-            </filter>
-            <filter id="__af_cvd_achromatopsia__">
-              <feColorMatrix type="matrix" values="
-                0.299, 0.587, 0.114, 0, 0
-                0.299, 0.587, 0.114, 0, 0
-                0.299, 0.587, 0.114, 0, 0
-                0.000, 0.000, 0.000, 1, 0" />
-            </filter>
-          </defs>
-        `;
-        document.documentElement.appendChild(defsSvg);
+    const mobSimRoot = document.getElementById('__auditforge_mobile_sim_root__');
+    const isMobSimOpen = Boolean(mobSimRoot);
+
+    // If mobile simulator HUD is active on the page, the vision filter applies strictly
+    // to the simulated mobile device iframe. The outer simulator tool (chassis, header,
+    // drawer, issue cards) and outer page remain crystal-clear and unaffected.
+    if (!isMobSimOpen && document.body) {
+      // 1. Color Vision Deficiency (SVG Matrix Filters)
+      if (CVD_FILTER_ID_MAP[filterType]) {
+        let defsSvg = document.getElementById('__auditforge_cvd_defs__');
+        if (!defsSvg) {
+          defsSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          defsSvg.id = '__auditforge_cvd_defs__';
+          defsSvg.setAttribute('style', 'position: absolute; height: 0; width: 0; overflow: hidden;');
+          defsSvg.setAttribute('aria-hidden', 'true');
+          defsSvg.innerHTML = `
+            <defs>
+              <filter id="__af_cvd_protanopia__">
+                <feColorMatrix type="matrix" values="
+                  0.567, 0.433, 0.000, 0, 0
+                  0.558, 0.442, 0.000, 0, 0
+                  0.000, 0.242, 0.758, 0, 0
+                  0.000, 0.000, 0.000, 1, 0" />
+              </filter>
+              <filter id="__af_cvd_deuteranopia__">
+                <feColorMatrix type="matrix" values="
+                  0.625, 0.375, 0.000, 0, 0
+                  0.700, 0.300, 0.000, 0, 0
+                  0.000, 0.300, 0.700, 0, 0
+                  0.000, 0.000, 0.000, 1, 0" />
+              </filter>
+              <filter id="__af_cvd_tritanopia__">
+                <feColorMatrix type="matrix" values="
+                  0.950, 0.050, 0.000, 0, 0
+                  0.000, 0.433, 0.567, 0, 0
+                  0.000, 0.475, 0.525, 0, 0
+                  0.000, 0.000, 0.000, 1, 0" />
+              </filter>
+              <filter id="__af_cvd_achromatopsia__">
+                <feColorMatrix type="matrix" values="
+                  0.299, 0.587, 0.114, 0, 0
+                  0.299, 0.587, 0.114, 0, 0
+                  0.299, 0.587, 0.114, 0, 0
+                  0.000, 0.000, 0.000, 1, 0" />
+              </filter>
+            </defs>
+          `;
+          (document.documentElement || document.body).appendChild(defsSvg);
+        }
+        const filterId = CVD_FILTER_ID_MAP[filterType];
+        // Apply filter strictly to document.body so all extension popups attached to document.documentElement remain sharp and un-filtered!
+        document.body.style.setProperty('filter', `url(#${filterId})`, 'important');
       }
-      const filterId = CVD_FILTER_ID_MAP[filterType];
-      document.documentElement.style.setProperty('filter', `url(#${filterId})`, 'important');
-    }
 
-    // 2. Cataracts / Visual Acuity Loss (Gaussian blur & low contrast wash)
-    else if (filterType === 'cataracts') {
-      document.documentElement.style.setProperty('filter', 'blur(3.5px) contrast(0.82) brightness(1.05)', 'important');
-    }
+      // 2. Cataracts / Visual Acuity Loss (Gaussian blur & low contrast wash)
+      else if (filterType === 'cataracts') {
+        document.body.style.setProperty('filter', 'blur(3.5px) contrast(0.82) brightness(1.05)', 'important');
+      }
 
-    // 3. Photophobia (Extreme Light Sensitivity / Inverted High Contrast)
-    else if (filterType === 'photophobia') {
-      document.documentElement.style.setProperty('filter', 'invert(1) hue-rotate(180deg) contrast(1.15)', 'important');
-    }
+      // 3. Photophobia (Extreme Light Sensitivity / Inverted High Contrast)
+      else if (filterType === 'photophobia') {
+        document.body.style.setProperty('filter', 'invert(1) hue-rotate(180deg) contrast(1.15)', 'important');
+      }
 
-    // 4. Glaucoma (Tunnel Vision / Loss of Peripheral Field)
-    else if (filterType === 'glaucoma') {
-      const overlay = document.createElement('div');
-      overlay.id = '__af_tunnel_overlay__';
-      overlay.style.cssText = `
+      // 4. Glaucoma (Tunnel Vision / Loss of Peripheral Field)
+      else if (filterType === 'glaucoma') {
+        const overlay = document.createElement('div');
+        overlay.id = '__af_tunnel_overlay__';
+        overlay.setAttribute('data-auditforge-ext', 'true');
+        overlay.style.cssText = `
+          position: fixed;
+          inset: 0;
+          width: 100vw;
+          height: 100vh;
+          z-index: 2147483640;
+          pointer-events: none;
+          background: radial-gradient(circle at 50% 50%, transparent 12%, rgba(10, 15, 29, 0.72) 22%, rgba(10, 15, 29, 0.96) 35%, rgba(10, 15, 29, 0.99) 100%);
+          backdrop-filter: blur(1px);
+          transition: background 0.04s ease-out;
+        `;
+        (document.documentElement || document.body).appendChild(overlay);
+
+        const updateTunnel = (e) => {
+          const x = Math.round((e.clientX / window.innerWidth) * 100);
+          const y = Math.round((e.clientY / window.innerHeight) * 100);
+          overlay.style.background = `radial-gradient(circle at ${x}% ${y}%, transparent 12%, rgba(10, 15, 29, 0.72) 22%, rgba(10, 15, 29, 0.96) 35%, rgba(10, 15, 29, 0.99) 100%)`;
+        };
+        window.addEventListener('mousemove', updateTunnel, { passive: true });
+        window.__af_vision_mouse_cleanup = () => {
+          window.removeEventListener('mousemove', updateTunnel);
+        };
+      }
+
+      // 5. Macular Degeneration (Central Blind Spot / Central Scotoma)
+      else if (filterType === 'macular') {
+        const overlay = document.createElement('div');
+        overlay.id = '__af_macular_overlay__';
+        overlay.setAttribute('data-auditforge-ext', 'true');
+        overlay.style.cssText = `
+          position: fixed;
+          inset: 0;
+          width: 100vw;
+          height: 100vh;
+          z-index: 2147483640;
+          pointer-events: none;
+          background: radial-gradient(circle at 50% 50%, rgba(15, 23, 42, 0.97) 0%, rgba(15, 23, 42, 0.88) 12%, rgba(15, 23, 42, 0.4) 22%, transparent 32%);
+          transition: background 0.04s ease-out;
+        `;
+        (document.documentElement || document.body).appendChild(overlay);
+
+        const updateMacular = (e) => {
+          const x = Math.round((e.clientX / window.innerWidth) * 100);
+          const y = Math.round((e.clientY / window.innerHeight) * 100);
+          overlay.style.background = `radial-gradient(circle at ${x}% ${y}%, rgba(15, 23, 42, 0.97) 0%, rgba(15, 23, 42, 0.88) 12%, rgba(15, 23, 42, 0.4) 22%, transparent 32%)`;
+        };
+        window.addEventListener('mousemove', updateMacular, { passive: true });
+        window.__af_vision_mouse_cleanup = () => {
+          window.removeEventListener('mousemove', updateMacular);
+        };
+      }
+
+      // Floating indicator pill
+      const isLowVision = ['cataracts', 'glaucoma', 'macular', 'photophobia'].includes(filterType);
+      const pill = document.createElement('div');
+      pill.id = '__af_cvd_indicator__';
+      pill.setAttribute('data-auditforge-ext', 'true');
+      pill.style.cssText = `
         position: fixed;
-        inset: 0;
-        width: 100vw;
-        height: 100vh;
-        z-index: 2147483640;
-        pointer-events: none;
-        background: radial-gradient(circle at 50% 50%, transparent 12%, rgba(10, 15, 29, 0.72) 22%, rgba(10, 15, 29, 0.96) 35%, rgba(10, 15, 29, 0.99) 100%);
-        backdrop-filter: blur(1px);
-        transition: background 0.04s ease-out;
+        bottom: 16px;
+        left: 16px;
+        z-index: 2147483647;
+        background: #000000;
+        border: 1px solid ${isLowVision ? '#1b6f7e' : '#127788'};
+        border-radius: 999px;
+        padding: 6px 14px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.85), 0 0 15px rgba(13,159,186,0.3);
+        color: #e2ebed;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 11.5px;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        user-select: none;
+        pointer-events: auto;
       `;
-      document.body.appendChild(overlay);
-
-      const updateTunnel = (e) => {
-        const x = Math.round((e.clientX / window.innerWidth) * 100);
-        const y = Math.round((e.clientY / window.innerHeight) * 100);
-        overlay.style.background = `radial-gradient(circle at ${x}% ${y}%, transparent 12%, rgba(10, 15, 29, 0.72) 22%, rgba(10, 15, 29, 0.96) 35%, rgba(10, 15, 29, 0.99) 100%)`;
-      };
-      window.addEventListener('mousemove', updateTunnel, { passive: true });
-      window.__af_vision_mouse_cleanup = () => {
-        window.removeEventListener('mousemove', updateTunnel);
-      };
-    }
-
-    // 5. Macular Degeneration (Central Blind Spot / Central Scotoma)
-    else if (filterType === 'macular') {
-      const overlay = document.createElement('div');
-      overlay.id = '__af_macular_overlay__';
-      overlay.style.cssText = `
-        position: fixed;
-        inset: 0;
-        width: 100vw;
-        height: 100vh;
-        z-index: 2147483640;
-        pointer-events: none;
-        background: radial-gradient(circle at 50% 50%, rgba(15, 23, 42, 0.97) 0%, rgba(15, 23, 42, 0.88) 12%, rgba(15, 23, 42, 0.4) 22%, transparent 32%);
-        transition: background 0.04s ease-out;
+      pill.innerHTML = `
+        <span style="display: flex; align-items: center; gap: 6px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#0D9FBA" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+          <span><strong style="color: #0D9FBA;">${isLowVision ? 'Low Vision Lens' : 'Color Vision Lens'}:</strong> ${LABELS[filterType] || filterType}</span>
+        </span>
+        <button id="__af_cvd_reset_btn__" type="button" style="background: #080f12; border: 1px solid rgba(27, 111, 126, 0.4); color: #0D9FBA; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 12px; cursor: pointer;">Reset Normal</button>
       `;
-      document.body.appendChild(overlay);
 
-      const updateMacular = (e) => {
-        const x = Math.round((e.clientX / window.innerWidth) * 100);
-        const y = Math.round((e.clientY / window.innerHeight) * 100);
-        overlay.style.background = `radial-gradient(circle at ${x}% ${y}%, rgba(15, 23, 42, 0.97) 0%, rgba(15, 23, 42, 0.88) 12%, rgba(15, 23, 42, 0.4) 22%, transparent 32%)`;
-      };
-      window.addEventListener('mousemove', updateMacular, { passive: true });
-      window.__af_vision_mouse_cleanup = () => {
-        window.removeEventListener('mousemove', updateMacular);
-      };
+      pill.querySelector('#__af_cvd_reset_btn__')?.addEventListener('click', () => {
+        window.__auditforgeSetColorFilter('none');
+      });
+
+      (document.documentElement || document.body).appendChild(pill);
     }
-
-    // Floating indicator pill
-    const isLowVision = ['cataracts', 'glaucoma', 'macular', 'photophobia'].includes(filterType);
-    const pill = document.createElement('div');
-    pill.id = '__af_cvd_indicator__';
-    pill.style.cssText = `
-      position: fixed;
-      bottom: 16px;
-      left: 16px;
-      z-index: 2147483647;
-      background: #000000;
-      border: 1px solid ${isLowVision ? '#1b6f7e' : '#127788'};
-      border-radius: 999px;
-      padding: 6px 14px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.85), 0 0 15px rgba(13,159,186,0.3);
-      color: #e2ebed;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      font-size: 11.5px;
-      font-weight: 500;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      user-select: none;
-      pointer-events: auto;
-    `;
-    pill.innerHTML = `
-      <span style="display: flex; align-items: center; gap: 6px;">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#0D9FBA" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
-        <span><strong style="color: #0D9FBA;">${isLowVision ? 'Low Vision Lens' : 'Color Vision Lens'}:</strong> ${LABELS[filterType] || filterType}</span>
-      </span>
-      <button id="__af_cvd_reset_btn__" type="button" style="background: #080f12; border: 1px solid rgba(27, 111, 126, 0.4); color: #0D9FBA; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 12px; cursor: pointer;">Reset Normal</button>
-    `;
-
-    pill.querySelector('#__af_cvd_reset_btn__')?.addEventListener('click', () => {
-      window.__auditforgeSetColorFilter('none');
-    });
-
-    document.body.appendChild(pill);
 
     return { active: true, filter: filterType };
   };
@@ -4482,7 +7282,7 @@
       if (typeof onRevert === 'function') onRevert();
     });
 
-    document.body.appendChild(badge);
+    (document.documentElement || document.body).appendChild(badge);
   }
 
   window.__auditforgePreviewFix = function(selector, fixType, payload = {}) {

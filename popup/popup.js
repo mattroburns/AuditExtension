@@ -90,6 +90,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   updatePersonaUI();
   populateVoiceSelect();
   await restoreSavedAuditOrLoadUrl();
+  await syncMobileSimulatorState();
 });
 
 window.addEventListener('beforeunload', () => {
@@ -198,6 +199,89 @@ function setupTabSyncListeners() {
       }
     });
   }
+
+  // Listen for real-time mobile simulator layout updates from the on-page simulator HUD
+  if (chrome.runtime?.onMessage) {
+    chrome.runtime.onMessage.addListener((message) => {
+      if (message && message.action === 'MOBILE_SIMULATOR_LAYOUT_UPDATED') {
+        const btn = document.getElementById('btn-launch-mobile-sim');
+        if (message.active === false) {
+          if (btn) {
+            btn.classList.remove('active');
+            btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg> <span>Launch Mobile Simulator</span>';
+          }
+        } else {
+          if (btn) {
+            btn.classList.add('active');
+            btn.innerHTML = '<span>⏹</span> <span>Exit Simulator</span>';
+          }
+          if (message.report && currentAudit) {
+            currentAudit.mobileLayout = message.report;
+            if (message.deviceId) {
+              currentMobileDevice = message.deviceId;
+              syncActiveDeviceTabUI(currentMobileDevice);
+            }
+            renderMobileSection(currentAudit.mobileLayout);
+          }
+        }
+      }
+    });
+  }
+}
+
+/**
+ * Synchronizes the active device button tab state in the popup UI
+ * @param {string} devId
+ */
+function syncActiveDeviceTabUI(devId) {
+  document.querySelectorAll('.mobile-device-btn').forEach((b) => {
+    b.classList.toggle('active', b.getAttribute('data-device') === devId);
+  });
+}
+
+/**
+ * Polls or syncs the active on-page mobile simulator state into the popup
+ */
+async function syncMobileSimulatorState() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    const targetTab = tab || (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
+    if (!targetTab?.id) return;
+
+    const res = await chrome.scripting.executeScript({
+      target: { tabId: targetTab.id },
+      func: () => {
+        // @ts-ignore
+        if (typeof window.__auditforgeGetMobileSimulatorState === 'function') {
+          // @ts-ignore
+          return window.__auditforgeGetMobileSimulatorState();
+        }
+        return null;
+      },
+    });
+
+    const state = res?.[0]?.result;
+    if (state) {
+      const btn = document.getElementById('btn-launch-mobile-sim');
+      if (btn) {
+        if (state.active) {
+          btn.classList.add('active');
+          btn.innerHTML = '<span>⏹</span> <span>Exit Simulator</span>';
+        } else {
+          btn.classList.remove('active');
+          btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg> <span>Launch Mobile Simulator</span>';
+        }
+      }
+      if (state.report && currentAudit) {
+        currentAudit.mobileLayout = state.report;
+        if (state.deviceId) {
+          currentMobileDevice = state.deviceId;
+          syncActiveDeviceTabUI(currentMobileDevice);
+        }
+        renderMobileSection(currentAudit.mobileLayout);
+      }
+    }
+  } catch (_) {}
 }
 
 /**
@@ -283,6 +367,15 @@ async function restoreSavedAuditOrLoadUrl() {
     welcomeUrlEl.textContent = activeUrl || 'Detecting active browser tab...';
   }
 
+  // Check local file permission status if user is currently viewing a file:// tab
+  if (activeUrl && activeUrl.startsWith('file://')) {
+    chrome.extension?.isAllowedFileSchemeAccess?.((isAllowed) => {
+      renderFileSchemeAccessNotice(isAllowed);
+    });
+  } else {
+    removeFileSchemeAccessNotice();
+  }
+
   // If there's a saved audit, check if it matches the current page URL
   try {
     const storageArea = chrome.storage?.session || chrome.storage?.local;
@@ -311,6 +404,55 @@ async function restoreSavedAuditOrLoadUrl() {
     console.warn('[Auditor] Could not restore saved audit:', err);
     showWelcomeView();
   }
+}
+
+/**
+ * Displays helpful guidance when the user views a local file:// page without Chrome permissions.
+ * @param {boolean} isAllowed
+ */
+function renderFileSchemeAccessNotice(isAllowed) {
+  const form = document.getElementById('audit-form');
+  if (!form) return;
+  let notice = document.getElementById('file-scheme-notice');
+  if (!notice) {
+    notice = document.createElement('div');
+    notice.id = 'file-scheme-notice';
+    form.parentNode?.insertBefore(notice, form);
+  }
+
+  if (!isAllowed) {
+    notice.style.cssText = 'margin-bottom: 16px; background: rgba(245, 158, 11, 0.12); border: 1.5px solid rgba(245, 158, 11, 0.45); border-radius: 8px; padding: 12px 14px; text-align: left; display: flex; flex-direction: column; gap: 8px;';
+    notice.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; color: #fbbf24; font-size: 13px;">
+        <span>📁</span>
+        <span>Local File Auditing Permission Required</span>
+      </div>
+      <p style="font-size: 11.5px; color: #cbd5e1; line-height: 1.45; margin: 0;">
+        Chrome blocks extensions from reading local <code>file://</code> pages by default. To audit this file, enable <strong>"Allow access to file URLs"</strong> in Chrome extension settings.
+      </p>
+      <div style="display: flex; gap: 8px; align-items: center; margin-top: 2px;">
+        <button type="button" id="btn-open-ext-details" style="background: #0D9FBA; border: none; color: #000; font-size: 11.5px; font-weight: 700; padding: 6px 12px; border-radius: 6px; cursor: pointer;">
+          Open Chrome Extension Settings ↗
+        </button>
+        <span style="font-size: 11px; color: #94a3b8;">or run <code>npm start</code> for localhost</span>
+      </div>
+    `;
+    notice.querySelector('#btn-open-ext-details')?.addEventListener('click', () => {
+      chrome.tabs.create({ url: `chrome://extensions/?id=${chrome.runtime.id}` });
+    });
+  } else {
+    notice.style.cssText = 'margin-bottom: 16px; background: rgba(16, 185, 129, 0.12); border: 1.5px solid rgba(16, 185, 129, 0.4); border-radius: 8px; padding: 10px 14px; text-align: left; display: flex; align-items: center; gap: 10px;';
+    notice.innerHTML = `
+      <span style="font-size: 16px; color: #34d399;">✓</span>
+      <div style="font-size: 11.5px; color: #6ee7b7; font-weight: 600;">
+        Local file access enabled in Chrome. Ready to audit!
+      </div>
+    `;
+  }
+}
+
+function removeFileSchemeAccessNotice() {
+  document.getElementById('file-scheme-notice')?.remove();
 }
 
 /**
@@ -418,6 +560,13 @@ function setupEventListeners() {
           const t = document.getElementById('issues-toggle-btn');
           if (t) t.textContent = '▲ Hide Issues';
         }
+      } else if (targetId === 'section-mobile') {
+        const b = document.getElementById('mobile-panel-body');
+        if (b && b.classList.contains('hidden')) {
+          b.classList.remove('hidden');
+          const t = document.getElementById('mobile-toggle-btn');
+          if (t) t.textContent = '▲ Hide Layout';
+        }
       } else if (targetId === 'section-links') {
         const b = document.getElementById('link-checker-panel-body');
         if (b && b.classList.contains('hidden')) {
@@ -463,6 +612,7 @@ function setupEventListeners() {
   document.getElementById('btn-expand-all')?.addEventListener('click', () => {
     const bodies = [
       { id: 'issues-panel-body', btn: 'issues-toggle-btn', text: '▲ Hide Issues' },
+      { id: 'mobile-panel-body', btn: 'mobile-toggle-btn', text: '▲ Hide Layout' },
       { id: 'link-checker-panel-body', btn: 'link-checker-toggle-btn', text: '▲ Hide Links' },
       { id: 'tab-order-panel-body', btn: 'tab-order-toggle-btn', text: '▲ Hide Sequence' },
       { id: 'sr-panel-body', btn: 'sr-toggle-btn', text: '▲ Hide Readout' },
@@ -478,6 +628,7 @@ function setupEventListeners() {
   document.getElementById('btn-collapse-all')?.addEventListener('click', () => {
     const bodies = [
       { id: 'issues-panel-body', btn: 'issues-toggle-btn', text: '▼ View Issues' },
+      { id: 'mobile-panel-body', btn: 'mobile-toggle-btn', text: '▼ View Layout' },
       { id: 'link-checker-panel-body', btn: 'link-checker-toggle-btn', text: '▼ View Links' },
       { id: 'tab-order-panel-body', btn: 'tab-order-toggle-btn', text: '▼ View Sequence' },
       { id: 'sr-panel-body', btn: 'sr-toggle-btn', text: '▼ View Readout' },
@@ -1163,6 +1314,152 @@ function setupEventListeners() {
     toggleLinkPanel();
   });
 
+  // Mobile Layout Drawer Toggle
+  const mobileHeader = document.getElementById('mobile-header-toggle');
+  const mobileToggleBtn = document.getElementById('mobile-toggle-btn');
+  const mobileBody = document.getElementById('mobile-panel-body');
+
+  const toggleMobilePanel = () => {
+    if (!mobileBody) return;
+    const isHidden = mobileBody.classList.toggle('hidden');
+    if (mobileToggleBtn) {
+      mobileToggleBtn.textContent = isHidden ? '▼ View Layout' : '▲ Hide Layout';
+    }
+    if (!isHidden) {
+      syncMobileSimulatorState();
+    }
+  };
+
+  mobileHeader?.addEventListener('click', () => {
+    toggleMobilePanel();
+  });
+  mobileToggleBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleMobilePanel();
+  });
+
+  // Mobile Device Viewport Tabs
+  document.querySelectorAll('.mobile-device-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      document.querySelectorAll('.mobile-device-btn').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentMobileDevice = btn.getAttribute('data-device') || 'iphone-16-pro';
+      renderMobileSection(currentAudit?.mobileLayout);
+
+      // If mobile simulator is open in active tab, sync device there too!
+      try {
+        const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+        const targetTab = tab || (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
+        if (targetTab?.id) {
+          const res = await chrome.scripting.executeScript({
+            target: { tabId: targetTab.id },
+            func: (devId) => {
+              // @ts-ignore
+              if (typeof window.__auditforgeSetMobileSimulatorDevice === 'function') {
+                // @ts-ignore
+                return window.__auditforgeSetMobileSimulatorDevice(devId);
+              }
+              return null;
+            },
+            args: [currentMobileDevice],
+          });
+          const resState = res?.[0]?.result;
+          if (resState?.report && currentAudit) {
+            currentAudit.mobileLayout = resState.report;
+            renderMobileSection(currentAudit.mobileLayout);
+          }
+        }
+      } catch (_) {}
+    });
+  });
+
+  // Mobile Filter Category Tabs
+  document.querySelectorAll('.mobile-filter-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.mobile-filter-btn').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentMobileFilter = btn.getAttribute('data-mobile-filter') || 'all';
+      renderMobileSection(currentAudit?.mobileLayout);
+    });
+  });
+
+  // Mobile Simulator Launch Button
+  document.getElementById('btn-launch-mobile-sim')?.addEventListener('click', async () => {
+    const btn = document.getElementById('btn-launch-mobile-sim');
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+      const targetTab = tab || (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
+      if (!targetTab?.id) return;
+
+      // Ensure audit runner script injected
+      await chrome.scripting.executeScript({
+        target: { tabId: targetTab.id },
+        files: ['content/audit-runner.js'],
+      });
+
+      const res = await chrome.scripting.executeScript({
+        target: { tabId: targetTab.id },
+        func: (devId) => {
+          // @ts-ignore
+          if (typeof window.__auditforgeToggleMobileSimulator === 'function') {
+            // @ts-ignore
+            return window.__auditforgeToggleMobileSimulator({ deviceId: devId });
+          }
+          return { active: false };
+        },
+        args: [currentMobileDevice],
+      });
+
+      const simResult = res[0]?.result;
+      if (btn) {
+        if (simResult && simResult.active) {
+          btn.classList.add('active');
+          btn.innerHTML = '<span>⏹</span> <span>Exit Simulator</span>';
+          if (simResult.report && currentAudit) {
+            currentAudit.mobileLayout = simResult.report;
+            renderMobileSection(currentAudit.mobileLayout);
+          }
+        } else {
+          btn.classList.remove('active');
+          btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg> <span>Launch Mobile Simulator</span>';
+        }
+      }
+    } catch (err) {
+      console.warn('[Auditor] Could not launch mobile simulator:', err);
+    }
+  });
+
+  // Open Dedicated Device Window Button (Native Browser Viewport)
+  document.getElementById('btn-open-device-window')?.addEventListener('click', async () => {
+    try {
+      const DEVICE_DIMENSIONS = {
+        'iphone-16-pro': { width: 393, height: 852 },
+        'iphone-se': { width: 375, height: 667 },
+        'galaxy-s24': { width: 360, height: 780 },
+        'pixel-8': { width: 412, height: 915 },
+        'iphone-16-max': { width: 430, height: 932 },
+      };
+      const dims = DEVICE_DIMENSIONS[currentMobileDevice] || { width: 393, height: 852 };
+
+      const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+      const targetTab = tab || (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
+      const targetUrl = targetTab?.url || 'about:blank';
+
+      chrome.runtime.sendMessage({
+        action: 'OPEN_DEVICE_WINDOW',
+        url: targetUrl,
+        width: dims.width,
+        height: dims.height,
+      }, (resp) => {
+        if (!resp?.success) {
+          window.open(targetUrl, '_blank', `width=${dims.width},height=${dims.height},menubar=no,toolbar=no,location=yes,status=no,resizable=yes`);
+        }
+      });
+    } catch (err) {
+      console.warn('[Auditor] Could not open device window:', err);
+    }
+  });
+
   // Re-check Links Button
   document.getElementById('btn-recheck-links')?.addEventListener('click', () => {
     if (currentAudit?.links) {
@@ -1197,8 +1494,13 @@ function setupEventListeners() {
         } else {
           const pillText = btn.textContent?.trim() || cvdType;
           cvdBadge.textContent = `${pillText} Active`;
-          cvdBadge.style.color = '#fbbf24';
-          cvdBadge.style.borderColor = 'rgba(245, 158, 11, 0.4)';
+          if (['astigmatism', 'visual-snow'].includes(cvdType)) {
+            cvdBadge.style.color = '#c084fc';
+            cvdBadge.style.borderColor = 'rgba(167, 139, 250, 0.45)';
+          } else {
+            cvdBadge.style.color = '#fbbf24';
+            cvdBadge.style.borderColor = 'rgba(245, 158, 11, 0.4)';
+          }
         }
       }
 
@@ -1276,13 +1578,13 @@ async function runAudit(targetUrl) {
     } catch (_) {}
 
     // Normalize URL
-    let validUrl = targetUrl;
-    if (!validUrl.startsWith('http://') && !validUrl.startsWith('https://')) {
+    let validUrl = (targetUrl || '').trim();
+    if (!validUrl.startsWith('http://') && !validUrl.startsWith('https://') && !validUrl.startsWith('file://')) {
       validUrl = `https://${validUrl}`;
     }
 
     // If user specified a different URL, navigate current tab to it
-    if (tab.url !== validUrl && !tab.url.startsWith(validUrl)) {
+    if (!urlsMatch(tab.url, validUrl) && tab.url !== validUrl && !tab.url.startsWith(validUrl)) {
       updateProgress('Navigating to Target URL...', 'Loading web page before executing audit...');
       await new Promise((resolve, reject) => {
         chrome.runtime.sendMessage({ action: 'NAVIGATE_AND_WAIT', tabId: tab.id, url: validUrl }, (response) => {
@@ -1302,6 +1604,26 @@ async function runAudit(targetUrl) {
     // Check if target page is accessible (cannot audit chrome:// or web store pages)
     if (tab.url.startsWith('chrome://') || tab.url.startsWith('edge://') || tab.url.startsWith('https://chrome.google.com/webstore')) {
       throw new Error('Browser internal pages and extensions store cannot be scripted due to Chrome security restrictions.');
+    }
+
+    // Check Chrome file scheme permission if auditing local files
+    if (tab.url.startsWith('file://')) {
+      const isAllowedFile = await new Promise((resolve) => {
+        if (typeof chrome.extension?.isAllowedFileSchemeAccess === 'function') {
+          chrome.extension.isAllowedFileSchemeAccess(resolve);
+        } else {
+          resolve(true);
+        }
+      });
+      if (!isAllowedFile) {
+        throw new Error(
+          'Chrome blocks extensions from reading local files by default.\n\n' +
+          'To audit this file:\n' +
+          '1. Open chrome://extensions/?id=' + (chrome.runtime?.id || '') + '\n' +
+          '2. Toggle ON "Allow access to file URLs"\n\n' +
+          'Or run "npm start" in terminal to audit via http://localhost:3000/holiday-ready-test-site.html with zero setup.'
+        );
+      }
     }
 
     updateProgress('Injecting WCAG 2.2 Ruleset...', 'Loading axe-core and evaluation engine into DOM...');
@@ -1483,81 +1805,100 @@ function renderScorecard(audit) {
   const srFailures = (audit.speechSequence || []).filter(s => s.isBarrier).length;
   const kpiSrVal = document.getElementById('kpi-sr-count');
   const kpiSrCard = document.getElementById('kpi-card-sr');
-  if (kpiSrVal) {
-    kpiSrVal.textContent = srFailures === 0 ? '✓ 0' : String(srFailures);
-    if (kpiSrCard) {
-      if (srFailures > 0) {
-        kpiSrCard.classList.remove('kpi-zero-failures');
-        kpiSrCard.classList.add('kpi-has-failures');
-      } else {
-        kpiSrCard.classList.remove('kpi-has-failures');
-        kpiSrCard.classList.add('kpi-zero-failures');
+    if (kpiSrVal) {
+      kpiSrVal.textContent = srFailures === 0 ? '✓ 0' : String(srFailures);
+      if (kpiSrCard) {
+        if (srFailures > 0) {
+          kpiSrCard.classList.remove('kpi-zero-failures');
+          kpiSrCard.classList.add('kpi-has-failures');
+        } else {
+          kpiSrCard.classList.remove('kpi-has-failures');
+          kpiSrCard.classList.add('kpi-zero-failures');
+        }
       }
     }
-  }
 
-  // Screen Reader Compatibility Metrics
-  const srScore = audit.screenReaderScore !== undefined ? audit.screenReaderScore : 100;
-  const srScoreEl = document.getElementById('result-sr-score');
-  const srBadgeEl = document.getElementById('sr-score-badge');
-  const srBarriersEl = document.getElementById('sr-barrier-count');
-  const srLandmarkEl = document.getElementById('sr-landmark-status');
-  const srHeadingEl = document.getElementById('sr-heading-status');
-
-  if (srScoreEl) srScoreEl.textContent = `${srScore}/100`;
-  if (srBadgeEl) {
-    srBadgeEl.textContent = `${srScore}/100 VoiceOver`;
-    if (srScore >= 85) {
-      srBadgeEl.style.color = '#34d399';
-      srBadgeEl.style.borderColor = 'rgba(16, 185, 129, 0.4)';
-      srBadgeEl.style.background = 'rgba(16, 185, 129, 0.15)';
-    } else if (srScore >= 70) {
-      srBadgeEl.style.color = '#fbbf24';
-      srBadgeEl.style.borderColor = 'rgba(245, 158, 11, 0.4)';
-      srBadgeEl.style.background = 'rgba(245, 158, 11, 0.15)';
-    } else {
-      srBadgeEl.style.color = '#f87171';
-      srBadgeEl.style.borderColor = 'rgba(239, 68, 68, 0.4)';
-      srBadgeEl.style.background = 'rgba(239, 68, 68, 0.15)';
+    // 5. Mobile Layout Barriers
+    const mobileLayout = audit.mobileLayout;
+    const mobileFailures = mobileLayout?.summary?.totalIssues ?? (mobileLayout?.issues?.length || 0);
+    const kpiMobVal = document.getElementById('kpi-mobile-count');
+    const kpiMobCard = document.getElementById('kpi-card-mobile');
+    if (kpiMobVal) {
+      kpiMobVal.textContent = mobileFailures === 0 ? '✓ 0' : String(mobileFailures);
+      if (kpiMobCard) {
+        if (mobileFailures > 0) {
+          kpiMobCard.classList.remove('kpi-zero-failures');
+          kpiMobCard.classList.add('kpi-has-failures');
+        } else {
+          kpiMobCard.classList.remove('kpi-has-failures');
+          kpiMobCard.classList.add('kpi-zero-failures');
+        }
+      }
     }
-  }
 
-  const barrierCount = (audit.speechSequence || []).filter(s => s.isBarrier).length;
-  if (srBarriersEl) {
-    srBarriersEl.textContent = `${barrierCount} detected`;
-    srBarriersEl.style.color = barrierCount === 0 ? '#34d399' : '#f87171';
-  }
+    // Screen Reader Compatibility Metrics
+    const srScore = audit.screenReaderScore !== undefined ? audit.screenReaderScore : 100;
+    const srScoreEl = document.getElementById('result-sr-score');
+    const srBadgeEl = document.getElementById('sr-score-badge');
+    const srBarriersEl = document.getElementById('sr-barrier-count');
+    const srLandmarkEl = document.getElementById('sr-landmark-status');
+    const srHeadingEl = document.getElementById('sr-heading-status');
 
-  const hasLandmarkIssue = (audit.violations || []).some(v => v.id === 'screen-reader-landmarks' || v.id === 'landmark-one-main');
-  if (srLandmarkEl) {
-    srLandmarkEl.textContent = hasLandmarkIssue ? 'Deficient / Missing' : 'Verified';
-    srLandmarkEl.style.color = hasLandmarkIssue ? '#f87171' : '#34d399';
-  }
+    if (srScoreEl) srScoreEl.textContent = `${srScore}/100`;
+    if (srBadgeEl) {
+      srBadgeEl.textContent = `${srScore}/100 VoiceOver`;
+      if (srScore >= 85) {
+        srBadgeEl.style.color = '#34d399';
+        srBadgeEl.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+        srBadgeEl.style.background = 'rgba(16, 185, 129, 0.15)';
+      } else if (srScore >= 70) {
+        srBadgeEl.style.color = '#fbbf24';
+        srBadgeEl.style.borderColor = 'rgba(245, 158, 11, 0.4)';
+        srBadgeEl.style.background = 'rgba(245, 158, 11, 0.15)';
+      } else {
+        srBadgeEl.style.color = '#f87171';
+        srBadgeEl.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+        srBadgeEl.style.background = 'rgba(239, 68, 68, 0.15)';
+      }
+    }
 
-  const hasHeadingIssue = (audit.violations || []).some(v => v.id === 'screen-reader-heading-order' || v.id === 'heading-order');
-  if (srHeadingEl) {
-    srHeadingEl.textContent = hasHeadingIssue ? 'Broken / Skipped' : 'Sequential';
-    srHeadingEl.style.color = hasHeadingIssue ? '#f87171' : '#34d399';
-  }
+    const barrierCount = (audit.speechSequence || []).filter(s => s.isBarrier).length;
+    if (srBarriersEl) {
+      srBarriersEl.textContent = `${barrierCount} detected`;
+      srBarriersEl.style.color = barrierCount === 0 ? '#34d399' : '#f87171';
+    }
 
-  // Update Rotor Filter Counts
-  const seq = audit.speechSequence || [];
-  const rAll = document.getElementById('rotor-count-all');
-  const rHead = document.getElementById('rotor-count-heading');
-  const rLand = document.getElementById('rotor-count-landmark');
-  const rLink = document.getElementById('rotor-count-link');
-  const rCtrl = document.getElementById('rotor-count-control');
-  const rText = document.getElementById('rotor-count-text');
+    const hasLandmarkIssue = (audit.violations || []).some(v => v.id === 'screen-reader-landmarks' || v.id === 'landmark-one-main');
+    if (srLandmarkEl) {
+      srLandmarkEl.textContent = hasLandmarkIssue ? 'Deficient / Missing' : 'Verified';
+      srLandmarkEl.style.color = hasLandmarkIssue ? '#f87171' : '#34d399';
+    }
 
-  if (rAll) rAll.textContent = String(seq.length);
-  if (rHead) rHead.textContent = String(seq.filter(s => s.rotorCategory === 'heading').length);
-  if (rLand) rLand.textContent = String(seq.filter(s => s.rotorCategory === 'landmark').length);
-  if (rLink) rLink.textContent = String(seq.filter(s => s.rotorCategory === 'link').length);
-  if (rCtrl) rCtrl.textContent = String(seq.filter(s => s.rotorCategory === 'control').length);
-  if (rText) rText.textContent = String(seq.filter(s => s.rotorCategory === 'text').length);
+    const hasHeadingIssue = (audit.violations || []).some(v => v.id === 'screen-reader-heading-order' || v.id === 'heading-order');
+    if (srHeadingEl) {
+      srHeadingEl.textContent = hasHeadingIssue ? 'Broken / Skipped' : 'Sequential';
+      srHeadingEl.style.color = hasHeadingIssue ? '#f87171' : '#34d399';
+    }
 
-  renderSpeechTimeline(audit.speechSequence || []);
-  renderTabOrderSequence(audit.tabOrder);
+    // Update Rotor Filter Counts
+    const seq = audit.speechSequence || [];
+    const rAll = document.getElementById('rotor-count-all');
+    const rHead = document.getElementById('rotor-count-heading');
+    const rLand = document.getElementById('rotor-count-landmark');
+    const rLink = document.getElementById('rotor-count-link');
+    const rCtrl = document.getElementById('rotor-count-control');
+    const rText = document.getElementById('rotor-count-text');
+
+    if (rAll) rAll.textContent = String(seq.length);
+    if (rHead) rHead.textContent = String(seq.filter(s => s.rotorCategory === 'heading').length);
+    if (rLand) rLand.textContent = String(seq.filter(s => s.rotorCategory === 'landmark').length);
+    if (rLink) rLink.textContent = String(seq.filter(s => s.rotorCategory === 'link').length);
+    if (rCtrl) rCtrl.textContent = String(seq.filter(s => s.rotorCategory === 'control').length);
+    if (rText) rText.textContent = String(seq.filter(s => s.rotorCategory === 'text').length);
+
+    renderSpeechTimeline(audit.speechSequence || []);
+    renderTabOrderSequence(audit.tabOrder);
+    renderMobileSection(audit.mobileLayout);
 
   // Link Health & Broken Link Auditor
   initOrRenderLinkAudit(audit.links, audit.linkAudit);
@@ -2365,6 +2706,171 @@ function renderSpeechTimeline(speechSequence) {
     cardEl.addEventListener('click', (e) => {
       if (e.target.closest('.btn-speak-speech') || e.target.closest('.btn-highlight-speech') || e.target.closest('.sr-matrix-speak-btn')) return;
       triggerHighlight(btnLocate);
+    });
+  });
+}
+
+let currentMobileDevice = 'iphone-16-pro';
+let currentMobileFilter = 'all';
+
+/**
+ * Renders the Mobile & Responsive Layout Audit findings
+ * @param {Object} mobileLayout
+ */
+function renderMobileSection(mobileLayout) {
+  const container = document.getElementById('mobile-issues-list');
+  const badgeEl = document.getElementById('mobile-score-badge');
+  const overlapEl = document.getElementById('mobile-overlap-count');
+  const overflowEl = document.getElementById('mobile-overflow-count');
+  const stepsEl = document.getElementById('mobile-steps-count');
+  const touchEl = document.getElementById('mobile-touch-count');
+
+  if (!mobileLayout) {
+    if (badgeEl) badgeEl.textContent = '--/100 Mobile';
+    if (container) {
+      container.innerHTML = '<div class="mobile-empty-state"><p class="mobile-empty-desc">Run an audit to evaluate mobile responsive layout.</p></div>';
+    }
+    return;
+  }
+
+  const score = mobileLayout.mobileScore !== undefined ? mobileLayout.mobileScore : 100;
+  if (badgeEl) {
+    badgeEl.textContent = `${score}/100 Mobile (${mobileLayout.grade || 'A+'})`;
+    if (score >= 85) {
+      badgeEl.style.color = '#34d399';
+      badgeEl.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+      badgeEl.style.background = 'rgba(16, 185, 129, 0.15)';
+    } else if (score >= 70) {
+      badgeEl.style.color = '#fbbf24';
+      badgeEl.style.borderColor = 'rgba(245, 158, 11, 0.4)';
+      badgeEl.style.background = 'rgba(245, 158, 11, 0.15)';
+    } else {
+      badgeEl.style.color = '#f87171';
+      badgeEl.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+      badgeEl.style.background = 'rgba(239, 68, 68, 0.15)';
+    }
+  }
+
+  const summary = mobileLayout.summary || {};
+  if (overlapEl) overlapEl.textContent = String(summary.overlapsCount || 0);
+  if (overflowEl) overflowEl.textContent = String(summary.overflowsCount || 0);
+  if (stepsEl) stepsEl.textContent = String(summary.disjointedStepsCount || 0);
+  if (touchEl) touchEl.textContent = String(summary.touchTargetCount || 0);
+
+  // Determine issues for the selected device
+  const allIssues = (mobileLayout.issuesByDevice && mobileLayout.issuesByDevice[currentMobileDevice])
+    ? mobileLayout.issuesByDevice[currentMobileDevice]
+    : (mobileLayout.issues || []);
+
+  const countAll = allIssues.length;
+  const countOverflow = allIssues.filter(i => i.type === 'overflow').length;
+  const countOverlap = allIssues.filter(i => i.type === 'overlap').length;
+  const countSteps = allIssues.filter(i => i.type === 'disjointed-steps').length;
+  const countTouch = allIssues.filter(i => i.type === 'touch-target').length;
+
+  const fAll = document.getElementById('mob-filter-count-all');
+  const fOver = document.getElementById('mob-filter-count-overflow');
+  const fOverlap = document.getElementById('mob-filter-count-overlap');
+  const fSteps = document.getElementById('mob-filter-count-steps');
+  const fTouch = document.getElementById('mob-filter-count-touch');
+
+  if (fAll) fAll.textContent = String(countAll);
+  if (fOver) fOver.textContent = String(countOverflow);
+  if (fOverlap) fOverlap.textContent = String(countOverlap);
+  if (fSteps) fSteps.textContent = String(countSteps);
+  if (fTouch) fTouch.textContent = String(countTouch);
+
+  // Filter issues
+  const filtered = currentMobileFilter === 'all'
+    ? allIssues
+    : allIssues.filter(i => i.type === currentMobileFilter);
+
+  if (!container) return;
+
+  if (filtered.length === 0) {
+    const devName = (mobileLayout.availableDevices && mobileLayout.availableDevices.find(d => d.id === currentMobileDevice)?.name) || currentMobileDevice;
+    container.innerHTML = `
+      <div class="mobile-empty-state">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <div class="mobile-empty-title">Clean Mobile Responsive Layout</div>
+        <div class="mobile-empty-desc">No ${currentMobileFilter === 'all' ? '' : currentMobileFilter} layout issues detected on ${devName}. Elements are properly constrained, non-overlapping, and multi-step flows maintain clear visual sequence.</div>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = filtered.map((iss, idx) => {
+    const sevClass = iss.severity === 'critical' ? 'badge-crit' : (iss.severity === 'serious' ? 'badge-ser' : 'badge-mod');
+    const typeLabel = iss.type === 'overflow' ? '📏 Too Wide' : (iss.type === 'overlap' ? '💥 Overlap' : (iss.type === 'disjointed-steps' ? '🪜 Disjointed Steps' : (iss.type === 'touch-target' ? '👆 Touch Target' : '📱 Viewport')));
+
+    return `
+      <div class="mobile-issue-card" data-idx="${idx}">
+        <div class="mobile-card-top">
+          <div class="mobile-card-badges">
+            <span class="mobile-severity-badge ${sevClass}">${iss.severity}</span>
+            <span class="mobile-type-badge">${typeLabel}</span>
+          </div>
+          <span class="mobile-device-tag">${iss.device || 'Mobile'}</span>
+        </div>
+        <div class="mobile-card-title">${escapeHtml(iss.title)}</div>
+        <div class="mobile-card-summary">${escapeHtml(iss.failureSummary)}</div>
+        <div class="mobile-card-selector">${escapeHtml(iss.selector)}</div>
+        ${iss.remediationCode ? `<div class="mobile-code-preview">${escapeHtml(iss.remediationCode)}</div>` : ''}
+        <div class="mobile-card-actions">
+          <span style="font-size: 11px; color: #64748b;">${iss.wcagRule || 'WCAG 2.2 AA'}</span>
+          <button type="button" class="mobile-btn-locate" data-selector="${escapeHtml(iss.selector)}" data-selector-b="${escapeHtml(iss.selectorB || '')}" data-rule="${escapeHtml(iss.title)}" data-impact="${iss.severity}" data-type="${escapeHtml(iss.type || '')}" data-summary="${escapeHtml(iss.failureSummary || '')}" data-text-a="${escapeHtml(iss.textA || '')}" data-text-b="${escapeHtml(iss.textB || '')}">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+            <span>🎯 Locate on Page</span>
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Wire up Locate buttons
+  container.querySelectorAll('.mobile-btn-locate').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const sel = btn.getAttribute('data-selector');
+      const selB = btn.getAttribute('data-selector-b') || '';
+      const rule = btn.getAttribute('data-rule') || 'Mobile Layout Issue';
+      const impact = btn.getAttribute('data-impact') || 'serious';
+      const issType = btn.getAttribute('data-type') || '';
+      const issSummary = btn.getAttribute('data-summary') || '';
+      const issTextA = btn.getAttribute('data-text-a') || '';
+      const issTextB = btn.getAttribute('data-text-b') || '';
+      if (!sel) return;
+
+      try {
+        const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+        const targetTab = tab || (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
+        if (!targetTab?.id) return;
+
+        await chrome.scripting.executeScript({
+          target: { tabId: targetTab.id },
+          func: (meta) => {
+            // @ts-ignore
+            if (typeof window.__auditforgeHighlight === 'function') {
+              // @ts-ignore
+              window.__auditforgeHighlight(meta.selector, meta);
+            }
+          },
+          args: [{
+            selector: sel,
+            selectorB: selB,
+            rule,
+            title: rule,
+            impact,
+            severity: impact,
+            type: issType,
+            failureSummary: issSummary,
+            textA: issTextA,
+            textB: issTextB,
+          }],
+        });
+      } catch (err) {
+        console.warn('[Auditor] Could not locate element:', err);
+      }
     });
   });
 }
@@ -3601,7 +4107,7 @@ async function highlightElementOnPage(selector, meta = {}, triggerButton = null)
 
   const selStr = Array.isArray(selector) ? selector.join(' ') : String(selector || '');
   if (selStr.includes('__auditforge') || selStr.includes('__af_')) {
-    console.warn("Matt's QA Extension: Rejected attempt to highlight an extension element:", selector);
+    console.warn("Mattccessibility Tool: Rejected attempt to highlight an extension element:", selector);
     return;
   }
 
@@ -3621,7 +4127,7 @@ async function highlightElementOnPage(selector, meta = {}, triggerButton = null)
     }
 
     if (!targetTab || !targetTab.id) {
-      console.warn("Matt's QA Extension: No active tab found to highlight element.");
+      console.warn("Mattccessibility Tool: No active tab found to highlight element.");
       if (triggerButton) {
         triggerButton.innerHTML = '<span>⚠️ No Tab</span>';
         setTimeout(() => { triggerButton.innerHTML = originalHtml; }, 2000);
@@ -3650,7 +4156,7 @@ async function highlightElementOnPage(selector, meta = {}, triggerButton = null)
       args: [selector, meta],
     });
   } catch (err) {
-    console.error("Matt's QA Extension: Failed to trigger in-page highlight:", err);
+    console.error("Mattccessibility Tool: Failed to trigger in-page highlight:", err);
     if (triggerButton) {
       triggerButton.classList.remove('btn-located');
       triggerButton.innerHTML = '<span>⚠️ Notice</span>';

@@ -1,6 +1,6 @@
-# Matt's QA Extension (Chrome Extension)
+# Mattccessibility Tool (Chrome Extension)
 
-A standalone Google Chrome Extension (Manifest V3) styled in an ultra-comfortable **AMOLED Dark Mode** that evaluates any web page against the latest **WCAG 2.2 Level AA** standards, performs interactive **:hover state color contrast verification**, lints **ARIA accessible labels**, analyzes **logical tab navigation order** with an interactive **visual Tab-Trail overlay**, emulates **Color Blindness & Low Vision** (Protanopia, Deuteranopia, Tritanopia, Achromatopsia, Cataracts, Glaucoma, Macular Degeneration, Photophobia), provides a **live Screen Reader & VoiceOver speech synthesizer**, and generates **vector PDF compliance reports**.
+A standalone Google Chrome Extension (Manifest V3) styled in an ultra-comfortable **AMOLED Dark Mode** that evaluates any web page against the latest **WCAG 2.2 Level AA** standards, performs interactive **:hover state color contrast verification**, lints **ARIA accessible labels**, analyzes **logical tab navigation order** with an interactive **visual Tab-Trail overlay**, emulates **Color Blindness & Low Vision** (Protanopia, Deuteranopia, Tritanopia, Achromatopsia, Cataracts, Glaucoma, Macular Degeneration, Photophobia), audits **Mobile & Responsive Layouts** (overlapping elements, horizontal overflows, disjointed page steps, touch targets) with an interactive **Mobile Viewport Simulator HUD**, provides a **live Screen Reader & VoiceOver speech synthesizer**, and generates **vector PDF compliance reports**.
 
 ---
 
@@ -60,18 +60,40 @@ A standalone Google Chrome Extension (Manifest V3) styled in an ultra-comfortabl
    - **In-Page Tab-Trail Overlay**: Click **"🗺️ Show Tab-Trail Overlay"** to project numbered glowing badges (`#1, #2, #3...`) directly onto each interactive element on the target page, connected by curved directional SVG paths.
    - **Interactive Tab Sequence Cards**: Browse each focusable stop in the extension panel, view element roles/labels/selectors, and click **"🎯 Locate"** to highlight that element.
 
-8. **Vision Simulation Suite (Color Blindness & Low Vision)**:
+8. **Vision & Reading Simulation Suite (15 Impairment Lenses)**:
    - **Color Vision Deficiency (CVD) Lenses**:
-     - **Protanopia** (Red-blind / L-cone deficiency)
-     - **Deuteranopia** (Green-blind / M-cone deficiency, ~5% of males)
-     - **Tritanopia** (Blue/Yellow-blind / S-cone deficiency)
+     - **Protanopia** (Red-blind / L-cone deficiency, ~1.3% of males)
+     - **Deuteranopia** (Green-blind / M-cone deficiency, ~5% of males, most common)
+     - **Tritanopia** (Blue/Yellow-blind / S-cone deficiency, rare)
      - **Achromatopsia** (Monochromacy / Complete color blindness)
    - **Low Vision & Eye Condition Lenses**:
      - **Cataracts (Blur)**: Simulates cloudy lenses, visual acuity reduction, and washed-out contrast to test readability of typography and controls without sharp focus.
      - **Glaucoma (Tunnel Vision)**: Simulates peripheral vision loss with an interactive central visual cone that tracks cursor movements across the page.
      - **Macular Degeneration (Central Scotoma)**: Simulates central field vision loss, placing a blind spot in the direct line of sight.
+     - **Diabetic Retinopathy (Patchy Scotoma)**: Simulates patchy vision loss, floating specks, and retinal scotomas drifting with cursor movement.
+     - **Reduced Contrast Loss**: Tests extreme contrast sensitivity degradation (40% washout) to verify if WCAG 4.5:1 / 7:1 text remains readable.
+     - **Severe Myopia**: Simulates severe uncorrected short-sightedness (extreme blur without corrective spectacles or contact lenses).
      - **Photophobia (Inverted Contrast)**: Simulates high-contrast inverted dark mode for individuals with severe glare and light sensitivity.
-   - **Persistent Floating Reset Pill**: Displays the active simulation state on the webpage with a one-click **"Reset Normal"** button.
+   - **Perceptual & Refractive Impairment Lenses**:
+     - **Astigmatism / Diplopia (Ghosting)**: Emulates corneal refractive error and directional double-vision ghosting via SVG matrix filters.
+     - **Visual Snow Syndrome**: Simulates persistent flickering TV-static visual noise across the entire visual field via a lightweight, real-time canvas overlay.
+   - **Persistent Floating Reset Pill**: Displays the active simulation category on the live webpage with a one-click **"Reset Normal"** button.
+
+9. **Mobile & Responsive Layout Audit Suite & In-Page Viewport Simulator**:
+   - **Cross-Device Viewport Emulation**: Simulates and tests layout against the 5 most popular mobile devices today:
+     - **Apple iPhone 16 / 15 Pro** (393 × 852 px)
+     - **Apple iPhone SE** Compact Baseline (375 × 667 px)
+     - **Samsung Galaxy S24** (360 × 780 px)
+     - **Google Pixel 8** (412 × 915 px)
+     - **Apple iPhone 16 Pro Max** (430 × 932 px)
+   - **Overlapping Elements Detection**: Catches colliding interactive buttons, links, inputs, and overlapping text blocks using 2D geometric bounding box intersections.
+   - **Horizontal Viewport Overflows ("Too Wide for Page")**: Identifies fixed-width containers, unconstrained media/images, tables, and elements exceeding mobile screen width that force accidental horizontal scrolling.
+   - **Disjointed Page Steps & Multi-Step Flow Breakages**: Detects multi-step form progress bars, stepper indicators, wizard steps, and breadcrumbs suffering from awkward multi-line wrapping, detached connector lines, or colliding step badges.
+   - **Touch Target Size & Crowding**: Validates WCAG 2.5.8 Target Size Minimum (24×24px) and ergonomically optimal hit targets (44×44px / 48×48px), as well as crowded touch targets within 8px of each other.
+   - **Sticky & Fixed Element Occlusions**: Flags excessive sticky headers, banners, or floating footers that consume >30% of mobile screen height.
+   - **Interactive In-Page Mobile Viewport Simulator HUD**: Click **"📱 Launch Mobile Simulator"** to launch an in-page viewport simulator overlay directly on the website, complete with a realistic phone bezel, Dynamic Island / notch, portrait/landscape orientation rotate button, live device switcher dropdown, responsive iframe, and an interactive issues drawer.
+   - **One-Click In-Page Highlight**: Click **"🎯 Locate"** on any detected mobile issue to smoothly scroll to and illuminate the offending element with a glowing neon ring and diagnostic badge on the live webpage.
+   - **Vector PDF Compliance Reporting**: Automatically incorporates a dedicated **"Section 5: Mobile & Responsive Layout Assessment"** in exported dark-mode PDF reports with mobile health score, metric summary columns, and AutoTable violation itemization.
 
 ---
 
@@ -88,14 +110,14 @@ A standalone Google Chrome Extension (Manifest V3) styled in an ultra-comfortabl
 4. Toggle on **"Developer mode"** (toggle switch in the top-right corner).
 5. Click the **"Load unpacked"** button in the top-left corner.
 6. Select the downloaded or cloned **`AuditExtension`** folder (the folder containing `manifest.json`).
-7. **Matt's QA Extension** is now installed! Click the **Extensions puzzle piece icon (🧩)** in your browser toolbar, find the extension, and click the **Pin (📌)** icon to keep it visible on your toolbar.
+7. **Mattccessibility Tool** is now installed! Click the **Extensions puzzle piece icon (🧩)** in your browser toolbar, find the extension, and click the **Pin (📌)** icon to keep it visible on your toolbar.
 
 ---
 
 ## How to Run an Audit
 
 1. Navigate to any website you want to test (e.g. `https://example.com` or `https://news.ycombinator.com`).
-2. Click the **Matt's QA Extension** icon in the browser toolbar.
+2. Click the **Mattccessibility Tool** icon in the browser toolbar.
 3. The current page's URL will automatically appear in the input field.
 4. Click **"⚡ Run Audit"** (or press Enter):
    - The extension will inject the WCAG 2.2 engine into the page.

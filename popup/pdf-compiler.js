@@ -258,8 +258,11 @@
     const tabCount = auditData.tabOrder ? (auditData.tabOrder.positiveTabIndexCount || 0) : 0;
     const srCount = (auditData.speechSequence || []).filter(s => s.isBarrier).length;
     const totalAffectedElements = (auditData.violations || []).reduce((sum, v) => sum + (v.affectedCount || 1), 0);
+    const mobileLayout = auditData.mobileLayout || {};
+    const mobileCount = mobileLayout.summary ? (mobileLayout.summary.totalIssues || 0) : (mobileLayout.issues ? mobileLayout.issues.length : 0);
 
-    const kpiCardW = (contentWidth - 24) / 4;
+    const kpiCount = 5;
+    const kpiCardW = (contentWidth - ((kpiCount - 1) * 8)) / kpiCount;
     const kpiCardH = 48;
 
     const kpiSummary = [
@@ -286,6 +289,12 @@
         val: String(srCount),
         sub: srCount === 0 ? 'Clean speech flow' : `${srCount} auditory barriers`,
         color: srCount === 0 ? sevColors.passed : sevColors.critical,
+      },
+      {
+        label: 'MOBILE ISSUES',
+        val: String(mobileCount),
+        sub: mobileCount === 0 ? 'Clean mobile flow' : `${mobileCount} layout barriers`,
+        color: mobileCount === 0 ? sevColors.passed : sevColors.critical,
       },
     ];
 
@@ -1033,6 +1042,148 @@
           }
         },
       });
+    }
+
+    // =========================================================================
+    // SECTION 5: MOBILE & RESPONSIVE LAYOUT ASSESSMENT
+    // =========================================================================
+    if (auditData.mobileLayout) {
+      addDarkPage();
+      let mobY = 36;
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.setTextColor(textBright[0], textBright[1], textBright[2]);
+      doc.text('Mobile & Responsive Layout Assessment', margin, mobY);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
+      doc.text('Automated viewport simulation across iPhone 16 Pro (393px), iPhone SE (375px), Galaxy S24 (360px), and Pixel 8 (412px).', margin, mobY + 12);
+
+      mobY += 24;
+
+      // Mobile Findings Summary Box
+      const mobLayout = auditData.mobileLayout;
+      const mobScore = mobLayout.mobileScore !== undefined ? mobLayout.mobileScore : 100;
+      const mobSummary = mobLayout.summary || {};
+      const overlaps = mobSummary.overlapsCount || 0;
+      const overflows = mobSummary.overflowsCount || 0;
+      const disjointedSteps = mobSummary.disjointedStepsCount || 0;
+      const touchIssues = mobSummary.touchTargetCount || 0;
+
+      const mobBoxH = 68;
+      doc.setFillColor(cardBg[0], cardBg[1], cardBg[2]);
+      doc.roundedRect(margin, mobY, contentWidth, mobBoxH, 4, 4, 'F');
+      doc.setDrawColor(cardBorder[0], cardBorder[1], cardBorder[2]);
+      doc.roundedRect(margin, mobY, contentWidth, mobBoxH, 4, 4, 'S');
+
+      // Score Pill
+      doc.setFillColor(brandTeal[0], brandTeal[1], brandTeal[2]);
+      doc.roundedRect(margin + 12, mobY + 12, 100, 44, 4, 4, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16);
+      doc.setTextColor(255, 255, 255);
+      doc.text(`${mobScore}/100`, margin + 62, mobY + 32, { align: 'center' });
+      doc.setFontSize(7.5);
+      doc.text(`GRADE ${mobLayout.grade || 'A'} (${mobLayout.riskLevel || 'LOW'} RISK)`, margin + 62, mobY + 45, { align: 'center' });
+
+      // Metric columns
+      const mStartX = margin + 124;
+      const mColW = (contentWidth - 136) / 4;
+
+      const mobMetrics = [
+        { label: 'OVERLAPPING ELEMENTS', val: String(overlaps), color: overlaps === 0 ? sevColors.passed : sevColors.critical },
+        { label: 'CONTENT TOO WIDE', val: String(overflows), color: overflows === 0 ? sevColors.passed : sevColors.serious },
+        { label: 'DISJOINTED STEPS', val: String(disjointedSteps), color: disjointedSteps === 0 ? sevColors.passed : sevColors.serious },
+        { label: 'TOUCH TARGET BARRIERS', val: String(touchIssues), color: touchIssues === 0 ? sevColors.passed : sevColors.minor },
+      ];
+
+      mobMetrics.forEach((m, idx) => {
+        const mx = mStartX + idx * mColW;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(6.5);
+        doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
+        doc.text(m.label, mx, mobY + 20);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(13);
+        doc.setTextColor(m.color[0], m.color[1], m.color[2]);
+        doc.text(m.val, mx, mobY + 38);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(6.5);
+        doc.setTextColor(textDim[0], textDim[1], textDim[2]);
+        doc.text(m.val === '0' ? 'Zero issues' : 'Needs remediation', mx, mobY + 48);
+      });
+
+      mobY += mobBoxH + 16;
+
+      // Table of detected mobile layout issues
+      const mobIssues = (mobLayout.issues || []).slice(0, 25);
+      if (mobIssues.length > 0) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.setTextColor(textBright[0], textBright[1], textBright[2]);
+        doc.text('Detected Mobile Layout & Responsive Violations', margin, mobY);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
+        doc.text('Specific elements that break responsive layout, collide with other controls, or disrupt multi-step flows.', margin, mobY + 12);
+
+        const mobTableRows = mobIssues.map((iss, idx) => {
+          return [
+            String(idx + 1),
+            iss.severity.toUpperCase(),
+            iss.type.toUpperCase(),
+            iss.device || 'Mobile',
+            (iss.selector || '').slice(0, 42),
+            `${iss.title}\n${iss.failureSummary}\nFix: ${iss.remediationCode ? iss.remediationCode.split('\n')[0] : 'Adjust responsive styles'}`
+          ];
+        });
+
+        runAutoTable(doc, {
+          startY: mobY + 20,
+          margin: { left: margin, right: margin, bottom: 32 },
+          head: [['#', 'Severity', 'Category', 'Device', 'CSS Selector', 'Description & Remediation Advice']],
+          body: mobTableRows,
+          theme: 'plain',
+          styles: {
+            fontSize: 7,
+            cellPadding: 5,
+            overflow: 'linebreak',
+            lineColor: cardBorder,
+            lineWidth: 0.5,
+          },
+          headStyles: {
+            fillColor: tableHeadBg,
+            textColor: textBright,
+            fontStyle: 'bold',
+          },
+          bodyStyles: {
+            fillColor: tableRowBg,
+            textColor: textMuted,
+          },
+          columnStyles: {
+            0: { cellWidth: 20, fontStyle: 'bold', textColor: textMuted },
+            1: { cellWidth: 50, fontStyle: 'bold' },
+            2: { cellWidth: 70, fontStyle: 'bold', textColor: textBright },
+            3: { cellWidth: 60, textColor: textMuted },
+            4: { cellWidth: 100, fontStyle: 'bold', textColor: [56, 189, 248] },
+            5: { cellWidth: 224, textColor: textMuted },
+          },
+          didParseCell: function (data) {
+            if (data.section === 'body' && data.column.index === 1) {
+              const val = String(data.cell.raw).toUpperCase();
+              if (val === 'CRITICAL') data.cell.styles.textColor = sevColors.critical;
+              else if (val === 'SERIOUS') data.cell.styles.textColor = sevColors.serious;
+              else if (val === 'MODERATE') data.cell.styles.textColor = sevColors.moderate;
+              else data.cell.styles.textColor = sevColors.minor;
+            }
+          },
+        });
+      }
     }
 
     // =========================================================================

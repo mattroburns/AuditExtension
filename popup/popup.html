@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Matt's QA Extension</title>
+  <title>Mattccessibility Tool</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
@@ -20,7 +20,7 @@
           </svg>
         </div>
         <div>
-          <h1 class="header-title">Matt's QA Extension</h1>
+          <h1 class="header-title">Mattccessibility Tool</h1>
           <p class="header-subtitle">WCAG 2.2 Level AA &bull; Visual & Auditory QA</p>
         </div>
       </div>
@@ -41,7 +41,7 @@
           </span>
           <div>
             <h3 class="cvd-heading">Vision & Color Deficiency Simulation</h3>
-            <p class="cvd-subheading" title="Live simulation of 9 color blindness & low vision conditions">Live simulation of 9 color blindness & low vision conditions</p>
+            <p class="cvd-subheading" title="Live simulation of color blindness, low vision, and perceptual conditions">Live simulation of color blindness, low vision & perceptual conditions</p>
           </div>
         </div>
         <div class="cvd-badge-group">
@@ -81,7 +81,24 @@
               <button type="button" class="cvd-pill" data-cvd="cataracts" title="Cataracts: Acuity loss, cloudy lens, and contrast wash">Cataracts (Blur)</button>
               <button type="button" class="cvd-pill" data-cvd="glaucoma" title="Glaucoma: Severe peripheral vision loss (Tunnel Vision)">Glaucoma (Tunnel)</button>
               <button type="button" class="cvd-pill" data-cvd="macular" title="Macular Degeneration: Central vision loss / Scotoma">Macular (Central)</button>
+              <button type="button" class="cvd-pill" data-cvd="retinopathy" title="Diabetic Retinopathy: Patchy vision loss, floaters, and scattered scotomas">Retinopathy (Patchy)</button>
+              <button type="button" class="cvd-pill" data-cvd="contrast-loss" title="Reduced Contrast Sensitivity: Low contrast washout testing">Contrast Loss</button>
+              <button type="button" class="cvd-pill" data-cvd="myopia" title="Severe Myopia: Extreme uncorrected blur without lenses">Severe Myopia</button>
               <button type="button" class="cvd-pill" data-cvd="photophobia" title="Photophobia: Extreme glare sensitivity (Inverted High Contrast)">Photophobia</button>
+            </div>
+          </div>
+
+          <!-- Perceptual Conditions -->
+          <div class="cvd-row cvd-row-reading">
+            <div class="cvd-title-group">
+              <span class="cvd-icon reading-icon">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+              </span>
+              <span class="cvd-title">Perceptual:</span>
+            </div>
+            <div class="cvd-pills">
+              <button type="button" class="cvd-pill" data-cvd="astigmatism" title="Astigmatism / Diplopia: Refractive ghosting and directional double vision">Astigmatism (Ghost)</button>
+              <button type="button" class="cvd-pill" data-cvd="visual-snow" title="Visual Snow Syndrome: Persistent flickering TV-static noise overlay">Visual Snow</button>
             </div>
           </div>
         </div>
@@ -242,6 +259,16 @@
               <span class="failure-kpi-val" id="kpi-sr-count">0</span>
             </div>
           </div>
+
+          <div class="failure-kpi-card" id="kpi-card-mobile" data-target="section-mobile" title="Mobile responsive issues: overlapping elements, horizontal overflows, or disjointed steps (Click to inspect)">
+            <div class="failure-kpi-icon-wrap kpi-icon-mobile">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+            </div>
+            <div class="failure-kpi-details">
+              <span class="failure-kpi-label">Mobile Barriers</span>
+              <span class="failure-kpi-val" id="kpi-mobile-count">0</span>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -296,7 +323,82 @@
         </div>
       </section>
 
-      <!-- 2. Link Health & Broken Link Checker Drawer -->
+      <!-- 2. Mobile & Responsive Layout Audit Drawer -->
+      <section class="mobile-layout-section" id="section-mobile">
+        <div class="mobile-layout-header" id="mobile-header-toggle">
+          <div class="mobile-layout-header-title">
+            <span class="mobile-layout-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+            </span>
+            <div>
+              <h3 class="mobile-layout-title">Mobile & Responsive Layout Audit</h3>
+              <p class="mobile-layout-subtitle" title="Detects overlapping elements, horizontal overflows, and disjointed page steps across popular mobile viewports">Detects overlapping elements, horizontal overflows, and disjointed page steps across popular mobile viewports</p>
+            </div>
+          </div>
+          <div class="mobile-layout-badge-group">
+            <span id="mobile-score-badge" class="sr-score-badge">--/100 Mobile</span>
+            <button type="button" id="mobile-toggle-btn" class="mobile-toggle-btn">▼ View Layout</button>
+          </div>
+        </div>
+
+        <div id="mobile-panel-body" class="mobile-panel-body hidden">
+          <!-- Mobile Summary Strip -->
+          <div class="mobile-summary-strip">
+            <div class="mobile-strip-item" title="Interactive controls or text blocks colliding on mobile screen">
+              <span class="mobile-strip-label">Overlapping Elements:</span>
+              <strong id="mobile-overlap-count" class="mobile-strip-val val-danger">0</strong>
+            </div>
+            <div class="mobile-strip-item" title="Elements exceeding viewport width causing horizontal scrollbars">
+              <span class="mobile-strip-label">Content Too Wide:</span>
+              <strong id="mobile-overflow-count" class="mobile-strip-val val-warning">0</strong>
+            </div>
+            <div class="mobile-strip-item" title="Disjointed Steps happen when sequential multi-step flows or checkout wizards (Step 1 → 2 → 3) visually break or collide across lines on mobile screens, disrupting the reading sequence (WCAG 1.3.2).">
+              <span class="mobile-strip-label">Disjointed Steps ℹ️:</span>
+              <strong id="mobile-steps-count" class="mobile-strip-val val-warning">0</strong>
+            </div>
+            <div class="mobile-strip-item" title="Touch target warnings retired to eliminate false alarms on inline text links">
+              <span class="mobile-strip-label">Touch Targets:</span>
+              <strong id="mobile-touch-count" class="mobile-strip-val val-info">0</strong>
+            </div>
+          </div>
+
+          <!-- Device Selector & Simulator Bar -->
+          <div class="mobile-device-bar">
+            <div class="mobile-device-group">
+              <span class="mobile-device-label">Test Viewport:</span>
+              <div class="mobile-device-tabs" id="mobile-device-tabs">
+                <button type="button" class="mobile-device-btn active" data-device="iphone-16-pro" title="Apple iPhone 16 / 15 Pro (393 × 852 px)">📱 iPhone 16 Pro (393px)</button>
+                <button type="button" class="mobile-device-btn" data-device="iphone-se" title="Apple iPhone SE Compact Baseline (375 × 667 px)">📱 iPhone SE (375px)</button>
+                <button type="button" class="mobile-device-btn" data-device="galaxy-s24" title="Samsung Galaxy S24 (360 × 780 px)">📱 Galaxy S24 (360px)</button>
+                <button type="button" class="mobile-device-btn" data-device="pixel-8" title="Google Pixel 8 (412 × 915 px)">📱 Pixel 8 (412px)</button>
+                <button type="button" class="mobile-device-btn" data-device="iphone-16-max" title="Apple iPhone 16 Pro Max (430 × 932 px)">📱 16 Pro Max (430px)</button>
+              </div>
+            </div>
+            <button type="button" id="btn-launch-mobile-sim" class="btn-launch-sim" title="Launch interactive on-page mobile device frame to preview and test layout">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+              <span>Launch Mobile Simulator</span>
+            </button>
+            <button type="button" id="btn-open-device-window" class="btn-launch-sim" style="background: rgba(56, 189, 248, 0.15); border-color: rgba(56, 189, 248, 0.35); color: #38bdf8;" title="Open live interactive page at selected device viewport in a dedicated browser window">
+              <span>🚀</span> <span>Device Window</span>
+            </button>
+          </div>
+
+          <!-- Mobile Issue Filter Tabs Bar -->
+          <div class="mobile-filter-bar">
+            <button type="button" class="mobile-filter-btn active" data-mobile-filter="all">All (<span id="mob-filter-count-all">0</span>)</button>
+            <button type="button" class="mobile-filter-btn" data-mobile-filter="overflow">📏 Too Wide (<span id="mob-filter-count-overflow">0</span>)</button>
+            <button type="button" class="mobile-filter-btn" data-mobile-filter="overlap">💥 Overlaps (<span id="mob-filter-count-overlap">0</span>)</button>
+            <button type="button" class="mobile-filter-btn" data-mobile-filter="disjointed-steps">🪜 Disjointed Steps (<span id="mob-filter-count-steps">0</span>)</button>
+            <button type="button" class="mobile-filter-btn" data-mobile-filter="touch-target">👆 Touch Targets (<span id="mob-filter-count-touch">0</span>)</button>
+          </div>
+
+          <div id="mobile-issues-list" class="mobile-issues-list">
+            <!-- Dynamically populated mobile issue cards -->
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. Link Health & Broken Link Checker Drawer -->
       <section class="link-checker-section" id="section-links">
         <div class="link-checker-header" id="link-checker-header-toggle">
           <div class="link-checker-header-title">

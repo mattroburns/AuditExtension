@@ -1,10 +1,54 @@
 # Changelog
 
-All notable changes to **Matt's QA Extension** are documented in this file.
+All notable changes to **Mattccessibility Tool** are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
+
+## [1.4.0] - 2026-10-01
+
+### 📱 Mobile & Responsive Layout Audit Suite & Viewport Simulator HUD
+- **Cross-Device Mobile Layout Evaluator Engine**:
+  - Automatically simulates 5 popular mobile viewports: **Apple iPhone 16 / 15 Pro** (393px), **iPhone SE Compact Baseline** (375px), **Samsung Galaxy S24** (360px), **Google Pixel 8** (412px), and **Apple iPhone 16 Pro Max** (430px).
+  - **Horizontal Viewport Overflows ("Too Wide for Page")**: Detects elements with fixed widths or unconstrained media extending beyond device viewport boundaries (scrollWidth > clientWidth).
+  - **Overlapping Elements Detection**: Catches colliding interactive buttons, links, inputs, and text headers using precise 2D geometric bounding box intersections (xOverlap * yOverlap > 36 sq px).
+  - **Disjointed Page Steps & Multi-Step Wizard Breakages**: Flags multi-step form progress bars, stepper indicators, wizard tracks, and breadcrumbs suffering from awkward multi-line wrapping, detached connector lines, or colliding step badges.
+  - **Touch Target Sizing & Crowding**: Validates WCAG 2.5.8 Target Size Minimum (<24x24px) and ergonomically optimal hit targets (<44x44px), as well as crowded touch targets within 8px of each other.
+  - **Sticky / Fixed Element Occlusions**: Flags tall sticky headers, bottom navigation bars, or floating banners that consume >30% of mobile screen height.
+  - Computes objective **Mobile Health Score (0–100)**, Grade (A+ to F), and Risk Rating (Low, Moderate, High, Severe).
+- **Interactive In-Page Mobile Viewport Simulator HUD**:
+  - Click **"📱 Launch Mobile Simulator"** to launch an in-page viewport simulator overlay directly on the target webpage.
+  - Features realistic phone chassis with Dynamic Island notch, front lens, portrait/landscape orientation toggle button, live device switcher dropdown, responsive sandboxed iframe, and an interactive issues drawer.
+  - Interactive issue cards inside the simulator highlight offending elements and display remediation code snippets.
+- **Popup UI Integration**:
+  - Added 5th Executive KPI card: **"Mobile Barriers"** in the executive failures grid with instant one-click jump to the mobile drawer.
+  - Dedicated collapsible **"Mobile & Responsive Layout Audit"** drawer with device switcher tabs ('iPhone 16 Pro', 'iPhone SE', 'Galaxy S24', 'Pixel 8', '16 Pro Max'), summary metrics strip ('Overlaps', 'Too Wide', 'Disjointed Steps', 'Touch Targets'), and filter tabs ('All', 'Too Wide', 'Overlaps', 'Disjointed Steps', 'Touch Targets').
+  - Interactive **"🎯 Locate"** buttons scroll the host tab directly to the offending element with animated neon ring and diagnostic badge.
+- **Vector PDF Compliance Report Integration**:
+  - Added **"Section 5: Mobile & Responsive Layout Assessment"** to the dark-mode vector PDF export.
+  - Includes mobile health score pill, 4-metric summary columns, and AutoTable breakdown of all mobile violations with severity, viewport dimensions, DOM selectors, and remediation guidance.
+
+## [1.3.0] - 2026-09-24
+
+### 👁️ Visual Impairments & Reading Differences Emulation Suite
+- **Dyslexia Emulation Engine (`dyslexia`)**:
+  - Implements a non-destructive letter scrambling / transposition jitter algorithm based on the Widell cognitive reading model.
+  - Transposes internal letters of words (4+ letters) with cognitive homoglyph decoding strain, powered by zero-reflow static letter scrambling, homoglyph confusion (b/d, p/q), and static crowding without artificial growing/shrinking animations to guarantee smooth 60fps scrolling and interaction.
+  - Automatically isolates safe visible text nodes using `TreeWalker`, strictly excluding `<input>`, `<textarea>`, `<button>`, `<select>`, `<code>`, `<pre>`, and `<script>` elements.
+  - Full reversibility: stores pre-mutation text nodes in a Map, completely restoring 100% of original DOM text and removing typographic stress styles upon reset or filter change.
+  - **Dynamic Form & SPA Support**: Employs an active MutationObserver on document.body (childList, subtree) that automatically discovers and scrambles asynchronously populated form sections, multi-step wizards, accordion steps, and dynamic error messages without performance overhead.
+- **Expanded Low Vision & Eye Condition Lenses**:
+  - **Diabetic Retinopathy (`retinopathy`)**: Simulates patchy vision loss, floaters, and scattered retinal scotomas that drift with subtle mouse/cursor parallax, combined with localized blur.
+  - **Reduced Contrast Sensitivity (`contrast-loss`)**: Emulates 40% contrast washout, instantly showing why WCAG 4.5:1 (AA) and 7:1 (AAA) minimum contrast thresholds are vital for real users.
+  - **Severe Myopia (`myopia`)**: Simulates severe uncorrected short-sightedness with extreme blur (`5.5px`), testing whether visual hierarchy, large hit targets, and icons can still be distinguished without glasses.
+- **Refractive & Perceptual Impairment Lenses**:
+  - **Astigmatism / Diplopia (`astigmatism`)**: Accurately simulates corneal curvature refractive error and monocular double vision via SVG `feOffset`, `feGaussianBlur`, and `feMerge` directional ghosting filters.
+  - **Visual Snow Syndrome (`visual-snow`)**: Emulates persistent flickering television-static noise across the entire visual field using a high-performance, lightweight canvas noise overlay with zero memory overhead.
+- **Modernized 3-Row CVD & Impairment Drawer in Popup UI**:
+  - Reorganized into 3 distinct thematic rows: **Color Blindness** (5 lenses), **Low Vision** (7 lenses), and **Reading & Cognitive** (3 lenses) totaling 15 specialized lenses.
+  - Dedicated lavender/purple accents (`#a78bfa` / `#c084fc`) for Reading & Cognitive pills and active status badges.
+  - Upgraded in-page floating pill with dynamic category badges: `Color Vision Lens`, `Low Vision Lens`, and `Reading / Cognitive Lens` with single-click `Reset Normal`.
 
 ## [1.2.2] - 2026-09-18
 
@@ -108,7 +152,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.0.0] - 2026-09-15
 
 ### Added
-- Initial release of **Matt's QA Extension** (Manifest V3).
+- Initial release of **Mattccessibility Tool** (Manifest V3).
 - WCAG 2.2 AA rules evaluation via axe-core.
 - AMOLED dark theme with custom teal palette (`#1b6f7e`, `#127788`, `#0d9fba`).
 - Client-side PDF export via jsPDF and AutoTable.
